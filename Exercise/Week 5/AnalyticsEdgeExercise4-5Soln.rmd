@@ -1,0 +1,943 @@
+---
+title: "Week 4 & 5 Exercise Solutions"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Question 1
+## (a) {#onea}
+Q: Run a logit model with installation cost and operating cost as the only explanatory variables, without intercepts.
+
+A: We need to prepare the data for `mlogit()` using `mlogit.data()` first. The most important column is the column of choices, which we will use to get all of the other columns. We note that we assume that the data has been prepared and that the columns have the alternative names within them.
+
+We just read in the data first:
+```{r 1_a1}
+setdiff(ls(), ls(pattern = "SETUP"))
+rm(list = setdiff(ls(), ls(pattern = "SETUP")))
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Exercise/Week 5")
+suppressMessages(library(mlogit))  # suppress dependency loads
+df_1_a <- read.csv("Heating(7).csv")
+str(df_1_a)
+# head(df_1_a)
+```
+
+The following code is basically used to retrieve important column names and indices from possible `mlogit()` inputs. We do this to try to avoid hardcoding in column indices. These commands will minimally work for this exercise.
+```{r 1_a2}
+get_choices <- function(input_dataframe, choice_colname) {
+  if (is(input_dataframe[,choice_colname], "factor")) {
+    choices <- levels(input_dataframe[,choice_colname])
+  } else {
+    choices <- unique(input_dataframe[,choice_colname])
+  }
+  return(choices)
+}
+
+get_all_pred_cols <- function(input_dataframe, choices) {
+  pred_cols <- c()
+  for (colname in colnames(input_dataframe)) {
+    if (any(endsWith(colname, as.character(choices)))) {
+      pred_cols <- c(pred_cols, colname)
+    }
+  }
+  return(pred_cols)
+}
+
+get_pred_vars <- function(input_pred_cols, choices) {
+  single_choice_pred <- input_pred_cols[seq(1,
+                                            length(input_pred_cols),
+                                            length(choices))]
+  for (choice in choices) {
+    if (all(endsWith(single_choice_pred, as.character(choice)))) {
+      pred_vars_choice_rem <- gsub(paste0(".{", nchar(choice), "}$"), '',
+                                   single_choice_pred)
+      if (any(endsWith(pred_vars_choice_rem, "."))) {
+        return(gsub(".{1}$", '', pred_vars_choice_rem))
+      } else {
+        return(pred_vars_choice_rem)
+      }
+    }
+  }
+}
+```
+
+We can then just use the functions as defined:
+```{r 1_a3}
+# note that we get different column order from dataset
+# c("ec", "er", ...) vs c("gc", "gr", ...)
+choices_1_a <- get_choices(df_1_a, "depvar")
+pred_cols_1 <- get_all_pred_cols(df_1_a, choices_1_a)
+vary_ind_1 <- which(names(df_1_a) %in% pred_cols_1)
+pred_vars_1 <- get_pred_vars(pred_cols_1, choices_1_a)
+
+# running mlogit.data on what we have to transform it
+data_1_a <- mlogit.data(df_1_a,  # data.frame of data
+                    choice = "depvar",  # column name of choice
+                    shape = "wide",  # wide means each row is an observation
+                                     # long if each row is an alternative
+                    varying = vary_ind_1,
+                    # indices of varying columns for each alternative,
+                    sep = "."  # not necessary but still good to be clear
+                    )
+```
+
+Then, we can run `mlogit()` on the data:
+```{r 1_a4}
+model_1_a <- mlogit(depvar ~ ic + oc - 1, data_1_a)  # -1 means no intercept
+# summary(model_1_a)
+```
+
+\needspace{10\baselineskip}
+### i.
+Q: Do the estimated coefficients have the expected signs?
+
+A: 
+```{r 1_a_i}
+coef(model_1_a)
+```
+The coefficients of both `ic` and `oc` are negative which makes sense since as the installation cost and operating cost for a system increases, the probability of choosing that system goes down.
+
+### ii.
+Q: Are both coefficients significantly different from zero?
+
+A: We first try with what we expect should work:
+```{r 1_a_ii1}
+coef_table_1 <- summary(model_1_a)$CoefTable  # for later
+# note the naming difference from glm
+coef_table_1[,4]
+```
+
+A bunch of zeroes indicate that the p-value is fairly low, but otherwise are difficult to interpret. We can recover what the p-values are by replicating how they are typically calculated in terms of the summary table.
+```{r 1_a_ii2, results = "hold"}
+2*pnorm(-abs(coef_table_1[,3]))
+# note the assumption of two-sided test
+```
+These values are typically far below machine epsilons^[See https://stat.ethz.ch/R-manual/R-devel/library/base/html/zMachine.html] used in floating point arithmetic, and should not be interpreted as-is without verifying that all calculations have been done with adequate precision. However, we are fairly certain in saying that the p-values are lower than $`r .Machine$double.eps`$, corresponding to a Z-score of around `r qnorm(.Machine$double.eps)`. Calling the `summary()` on the `model` object reveals that it has somehow been programmed to compare against this value. These p-values indicate we should reject the null hypotheses that the coefficients are zero, with a significance level of less than 0.1%
+
+### iii.
+Q: Use the average of the probabilities to compute the predicted share. Compute the actual shares of houses with each system. How closely do the predicted shares match the actual shares of houses with each heating system?
+
+A: 
+We can get the actual shares in the data with the following code:
+```{r 1_a_iii1}
+pred_1_a <- predict(model_1_a, newdata = data_1_a)
+table(df_1_a$depvar)/nrow(df_1_a)
+```
+
+For the prediction, we use the fact that mean of an indicator variable represents the probability:
+```{r 1_a_iii2}
+apply(pred_1_a, 2, mean)  # 2 refers to doing the function over columns
+```
+
+It is arguable how close the model is. In terms of each choice, there is a maximum difference against the actual data of approximately 11% (in absolute percentage points) for `gc`. For `gr`, it is also similar with a difference of less than 10%. The rest of the choices have differences amounting to less than 5%. This would indicate that the model predicts well for the `ec`, `er` and `hp` choices, but not `gc` and `gr`.
+
+### iv. 
+Q:  The ratio of coefficients usually provides economically meaningful information in discrete choice models. The willingness to pay (*wtp*) through higher installation cost for a one-dollar reduction in operating costs is the ratio of the operating cost coefficient to the installation cost coefficients. What is the estimated *wtp* from this model? Note that the annual operating cost recurs every year while the installation cost is a one-time payment. Does the result make sense?
+
+A: 
+```{r 1_a_iv}
+unname(coef(model_1_a)["oc"]/coef(model_1_a)["ic"])
+```
+\begin{equation*}
+\frac{\beta_{oc}}{\beta_{ic}}=`r coef(model_1_a)["oc"]/coef(model_1_a)["ic"]`
+\end{equation*}
+
+```{r 1_a_EASY_ALIAS, include = FALSE}
+WTP_1_A_IV <- coef(model_1_a)["oc"]/coef(model_1_a)["ic"]
+```
+
+
+This implies that, according to this model, the decision-makers are willing to pay \$`r round(WTP_1_A_IV,2)` higher in installation cost for a \$1 reduction in operating cost. It seems unreasonable for the decision-maker to pay only `r round(WTP_1_A_IV,2)*100` cents higher for a one-time payment for a \$1 reduction in annual costs.
+
+## (b) {#oneb}
+Q:  The present value ($PV$) of the future operating costs is the discounted sum of operating costs over the life of the system: $PV=\sum_{t=1}^{L}[OC/(1+r)^{t}]$ where *r* is the discount rate and *L* is the life of the system. As *L* rises, the PV approaches *OC/r*. Therefore, for a system with a sufficiently long life (which we will assume these systems have), a one-dollar reduction in *OC* reduces the present value of future operating costs by *(1/r)*. This means that if the person choosing the system were incurring the installation costs and the operating costs over the life of the system, and rationally traded-off the two at a discount rate of *r*, the decision-maker’s *wtp* for operating cost reductions would be *(1/r)*. Define a new variable `lcc` (lifecycle cost) that is defined as the sum of the installation cost and the (operating cost)/*r*. Run a logit model with the lifecycle cost as the only explanatory variable. Estimate the model for r = 0.12.  Comment on the value of log-likelihood of the models obtained in [(a)](#onea) as compared to [(b)](#oneb).
+
+A: We first make a column called `lcc` with our `data` object
+```{r 1_b1}
+data_1_a$lcc <- data_1_a$ic + data_1_a$oc/0.12
+```
+We then estimate with the `mlogit()` function, and call `logLik()` to get the log likelihood for this model:
+```{r 1_b2}
+model_1_b <- mlogit(depvar ~ lcc - 1, data_1_a)
+logLik(model_1_b)
+```
+
+The log likelihood of the model is `r logLik(model_1_b)`.
+
+For comparison, we retrieve the log likelihood of the model in [(a)](#onea):
+```{r 1_b3}
+logLik(model_1_a)
+```
+
+The log likelihood of the model from [(a)](#onea) is `r logLik(model_1_a)`.
+
+Notice that the log likelihood of the model in [(a)](#onea) is higher (better, more likely) than that of the model in this part. What this means is that we can perform a likelihood ratio test:
+
+```{r 1_b4}
+library(lmtest)
+lrtest(model_1_a, model_1_b)
+```
+
+The test statistic indicates that the constrained model is far too unlikely to happen with a significance level of less than 0.1%. We have to reject the hypothesis that, within this model, $r=0.12$.
+
+The model in [(a)](#onea) is actually a model which maximises log likelihood without imposing any constraints on parameters in estimation, and hence it is *expected* that it would have higher log likelihood. We then built a different model, specifying a certain parameter (i.e. $r=0.12$). What we are testing for is if the model we are specifying in this part (i.e. a model that assumes a 12% inflation rate) is considered likely enough. When we compute the differences in log likelihood (equivalently, likelihood ratios), we are comparing if the model with a constraint is 'not too unlikely' to happen. 
+
+In general, the result that is seen here is undesirable, as the model in  [(a)](#onea) implicitly suggests weird levels of inflation/discount factors while a model with sensible inflation rates is unlikely. This suggests that the model in [(a)](#onea) is flawed.
+
+## (c) {#onec}
+Q: Add alternative-specific constants to the model in [(a)](#onea). With *K* alternatives, at most *K-1* alternative specific constants can be estimated. The coefficient of *K-1* constants are interpreted as relative to *K*th alternative. Normalize the constant for the alternative `hp` to 0.
+
+\needspace{8\baselineskip}
+A: Running `mlogit()` with a reference level:
+```{r 1_c}
+ref_level_1_c <- "hp"  # because we use this later
+model_1_c <- mlogit(depvar ~ ic + oc, data = data_1_a,
+                    reflevel = ref_level_1_c)
+# odd technical reasons make it such that we need 
+# the string "hp" for the reflevel argument
+coef_1_c <- model_1_c$coefficients  # for later
+ summary(model_1_c)
+```
+
+### i.
+Q: How well do the estimated probabilities match the shares of customers choosing each alternative in this case?
+
+A: We can get the predicted shares:
+```{r 1_c_i}
+share_1_c <- apply(predict(model_1_c, newdata = data_1_a), 2, mean)
+share_1_c
+```
+
+We notice that the predicted shares match the actual shares exactly with the use of the alternative specific constants.
+
+### ii.
+Q: Calculate the *wtp* that is implied by the estimate. Is this reasonable?
+
+A: 
+We calculate the willingness to pay:
+```{r 1_c_ii}
+unname(coef_1_c["oc"]/coef_1_c["ic"])
+```
+Hence:
+\begin{equation*}
+\frac{\beta_{oc}}{\beta_{ic}}=`r coef_1_c["oc"]/coef_1_c["ic"]`
+\end{equation*}
+which suggests an extra down-payment of \$`r round(coef_1_c["oc"]/coef_1_c["ic"], 2)` for a \$1 saving in annual operating costs. This seems more reasonable.
+
+### iii.
+Q: Suppose you had included constants for alternatives `ec`, `er`, `gc`, `hp` with the constant for alternative `gr` normalized to zero. What would be the estimated coefficient of the constant for alternative `gc`? Can you figure this out logically rather than actually estimating the model?
+
+\needspace{10\baselineskip}
+A: We can retrieve the coefficients of `gr` and `gc` with the following:
+```{r 1_c_iii1}
+#coef(model_1_c)[paste0(c("gr", "gc"), ":(intercept)")]
+summary(model_1_c)$CoefTable[c(grep("(Intercept):gr", names(model_1_c$coefficients), fixed=TRUE),grep("(Intercept):gc", names(model_1_c$coefficients), fixed=TRUE)),1]
+```
+When the reference level is changed to `gr`, all of the other coefficients would have their coefficients reduced by the intercept that `gr` has when `hp` is the reference level. `hp` itself has the coefficient of 0, and would be reduced accordingly. Hence, the estimated coefficient of the constant for alternative `gc` when the reference is changed from `hp` to `gr` is `r coef_1_c["gc:(intercept)"]`-`r coef_1_c["gr:(intercept)"]`=`r coef_1_c["gc:(intercept)"] - coef_1_c["gr:(intercept)"]`.
+
+We can verify this by first showing the coefficients with the previous reference level,
+```{r 1_c_iii2, results = 'hold'}
+c(coef_1_c)
+# c() used because no need for other attributes
+```
+
+and then call `update()` on our old `model` object:
+```{r 1_c_iii3, results = 'hold'}
+c(update(model_1_c, reflevel = "gr")$coefficients)
+```
+
+\needspace{12\baselineskip}
+## (d)
+Now try some models with sociodemographic variables entering.
+
+### i.
+Q: Enter installation cost divided by income, instead of installation cost. With this specification, the magnitude of the installation cost coefficient is inversely related to income, such that high-income households are less concerned with installation costs than lower-income households. Does dividing installation cost by income seem to make the model better or worse than the model in [(c)](#onec)?
+
+\needspace{6\baselineskip}
+A: Fitting the model first
+```{r 1_d_i1, results = "hold"}
+data_1_a$iic <- data_1_a$ic/data_1_a$income
+model_1_d_i <- mlogit(depvar ~ oc + iic, data_1_a)
+# summary(model_1_d_i)
+```
+
+We can compare the log likelihood of this model against the older model
+```{r 1_d_i2}
+model_1_c$logLik
+model_1_d_i$logLik
+```
+Looking deeper into the new model, we can look at the p-values in the newer model:
+```{r 1_d_i3}
+summary(model_1_d_i)$CoefTable[,4]
+```
+
+Note that the new log likelihood value is `r model_1_d_i$logLik` which is worse than `r model_1_c$logLik` previously. Also, in the new model, installation cost divided by income is not significant in this model.
+
+### ii.
+Q: Instead of dividing installation cost by income, enter alternative-specific income effects. You can do this by using the `|` argument in the mlogit formula. What do the estimates imply about the impact of income on the choice of central systems versus room system? Do these income terms enter significantly?
+
+A:
+```{r 1_d_ii1}
+model_1_d_ii <- mlogit(depvar ~ oc + ic | income, data_1_a,
+                       reflevel = ref_level_1_c)  # as opposed to above 
+# we will not be calling predict on this model_1_d_ii object
+# summary(model_1_d_ii)
+coef_1_d <- summary(model_1_d_ii)$CoefTable[
+  grep("income", names(model_1_d_ii$coefficients), fixed = TRUE),]
+coef_1_d[,1]
+```
+All of the coefficients are negative which tells us that income rises, probability of choosing a heat pump increases relative to others, The magnitude of the income coefficient for `gr` is the greatest so we can infer that as income rises, probability of choosing gas rooms drops relative to others.
+
+```{r 1_d_ii2}
+coef_1_d[,4] < 0.05
+```
+None of the income terms are significant at the 5% significance level.
+
+## (e)
+Q: We now are going to consider the use of the logit model for prediction. Estimate a model with installation costs, operating costs, and alternative specific constants. Calculate the probabilities for each house explicitly.
+
+### i.
+Q: The California Energy Commission (CEC) is considering whether to offer rebates on heat pumps. The CEC wants to predict the effect of the rebates on the heating system choices of customers in California. The rebates will be set at 10% of the installation cost. Using the estimated coeffiients from the model, calculate predicted shares under this new installation cost instead of original value. How much do the rebates raise the share of houses with heat pumps?
+
+A: We create a new dataframe via copying and then changing a column, and then create a new `mlogit.data` object:
+```{r 1_e_i1}
+df_1_e_i <- df_1_a
+df_1_e_i$ic.hp <- (1 - 0.1) * df_1_e_i$ic.hp
+data_1_e <- mlogit.data(df_1_e_i, choice = "depvar",
+                        shape = "wide", varying = vary_ind_1)
+```
+
+\needspace{8\baselineskip}
+We can then use the old model as-is with the newly created data:
+```{r 1_e_i2}
+pred_1_e <- predict(model_1_c, newdata = data_1_e)
+share_1_e <- apply(pred_1_e, 2, mean)
+share_1_e
+```
+
+The share of houses with heat pumps rises from `r share_1_c["hp"]` to `r share_1_e["hp"]`.
+
+### ii.
+This part is omitted.
+
+\pagebreak
+
+
+
+
+
+# Question 2
+## (a) {#twoa}
+Q: Run a mixed logit model without intercepts and a normal distribution for the 6 parameters of the model and taking into account the panel data structure.
+
+A: In this question the choices are located in column named `choice`, and we prepare for `mlogit()` with useful aliases:
+```{r 2_a1}
+df_2 <- read.csv("Electricity(7).csv")
+str(df_2)
+choices_2 <- get_choices(df_2, "choice")
+pred_cols_2 <- get_all_pred_cols(df_2, choices_2)
+vary_ind_2 <- which(names(df_2) %in% pred_cols_2)
+pred_vars_2 <- get_pred_vars(pred_cols_2, choices_2)
+rpar_vec_2_a <- rep("n", length(pred_vars_2))  # all gaussian
+names(rpar_vec_2_a) <- pred_vars_2
+```
+
+```{r 2_a_TO_AVOID_REESTIMATING, include = FALSE}
+data_2 <- mlogit.data(df_2, id.var = "id", choice = "choice",
+                      varying = vary_ind_2, shape = "wide", sep = "")
+
+CHECK_IF_MIXED_LOGIT_OBJ_EXISTS <- function(mixed_logit_file_name, rpar) {
+  if (!file.exists(mixed_logit_file_name)) {
+  
+    mixed_logit_obj <- mlogit(as.formula(paste0("choice ~ ", paste0(pred_vars_2, collapse = " + "), " - 1")),
+                        data = data_2, rpar = rpar, panel = TRUE)
+    saveRDS(mixed_logit_obj, file = mixed_logit_file_name)
+    return(mixed_logit_obj)
+  } else {
+    return(readRDS(mixed_logit_file_name))
+  }
+}
+MIXED_LOGIT_FILE_NAME_2_A <- "2_a_mixed_logit.rds"
+model_2_a <- CHECK_IF_MIXED_LOGIT_OBJ_EXISTS(MIXED_LOGIT_FILE_NAME_2_A, rpar_vec_2_a)
+```
+
+We can then run the mixed logit model with the following^[Note that the code is not actually run. The object is serialized and saved after the first time in code not shown here using `saveRDS()` and `readRDS()`. We will do this for the entirety of this question as mixed logit models take some time to estimate.]:
+```{r 2_a2, eval = FALSE}
+vary_ind_2
+rpar_vec_2_a
+data_2 <- mlogit.data(df_2, id.var = "id", choice = "choice",
+                      varying = vary_ind_2, shape = "wide", sep = "")
+model_2_a <- mlogit(as.formula(paste0("choice ~ ",
+                                      paste0(pred_vars_2,
+                                             collapse = " + "),  # use all
+                                      " - 1")),  # no intercept
+                    data = data_2, rpar = rpar_vec_2_a, panel = TRUE)
+summary(model_2_a)
+```
+
+### i.
+Q: Using the estimated mean coefficients, determine the amount that a customer with average coefficients for price and length is willing to pay for an extra year of contract length.
+
+\needspace{8\baselineskip}
+A: We just need the mean contract length coefficient,
+```{r 2_a_i1}
+model_2_a$coefficients["cl"]
+```
+
+and the mean coefficient of the price coefficient,
+```{r 2_a_i2}
+model_2_a$coefficients["pf"]
+```
+
+```{r 2_a_i_EASY_ALIAS, include = FALSE}
+x <- model_2_a$coefficients
+```
+
+The mean coefficient of contract length is around `r round(x["cl"], 2)` indicating consumers prefer shorter contracts. Since the mean price coefficient is `r round(x["pf"], 2)`, a customer will pay \linebreak $\frac{`r round(x["pf"], 2)`}{`r round(x["cl"], 2)`}$ = `r round(x["cl"]/x["pf"], 2)` cents per kWh to reduce contract length by 1 year.
+
+### ii.
+Q: Determine the share of the population who are estimated to dislike long term contracts (i.e. have a negative coefficient for the length.)
+
+A: We can get the coefficients that determine the distribution we are looking at with the following:
+```{r 2_a_ii1}
+model_2_a$coefficients[c("cl", "sd.cl")]
+```
+
+We assume that the population has a contract coefficient which is normally distributed, so we simply need to get the CDF of this distribution up to 0. (That is, the probability that a random variate that is sampled from this distribution is negative.)
+
+\begin{equation*}
+X_{cl}\sim N\left(`r x["cl"]`, \left(`r x["sd.cl"]`\right)^{2}\right)
+\end{equation*}
+where the first number is the mean and the second number is the variance. 
+
+\needspace{8\baselineskip}
+Helpfully, R can calculate the probability using `pnorm`:
+```{r 2_a_ii2}
+pnorm(0, model_2_a$coefficients["cl"], model_2_a$coefficients["sd.cl"])
+```
+Hence,
+\begin{equation*}
+\mathbb{P}\left(X_{cl}\leq 0\right)=`r pnorm(0, model_2_a$coefficients["cl"], model_2_a$coefficients["sd.cl"])`
+\end{equation*}
+which indicates that `r round(pnorm(0, model_2_a$coefficients["cl"], model_2_a$coefficients["sd.cl"]), 2)*100`% of the population dislike long contracts.
+
+## (b)
+Q: The price coefficient is assumed to be normally distributed in these runs. This assumption means that some people are assumed to have positive price coefficients, since the normal distribution has support on both sides of zero. Using your estimates from before, determine the share of customers with positive price coefficients (Hint: Use the `pnorm` function to calculate this share). As you can see, this is pretty small share and can probably be ignored. However, in some situations, a normal distribution for the price coefficient will give a fairly large share with the wrong sign. Revise the model to make the price coefficient fixed rather than random. A fixed price coefficient also makes it easier to calculate the distribution of willingness to pay (*wtp*) for each non-price attribute. If the price coefficients fixed, the distribution of wtp for an attribute has the same distribution as the attribute’s coefficient, simply scaled by the price coefficient. However, when the price coefficient is random, the distribution of *wtp* is the ratio of two distributions, which is harder to work with. What is the estimated value of the price coefficient? Compare the log likelihood of the new model with the old model.
+
+\needspace{8\baselineskip}
+A: 
+```{r 2_b_TO_AVOID_REESTIMATING, include = FALSE}
+MIXED_LOGIT_FILE_NAME_2_B <- "2_b_mixed_logit.rds"
+rpar_vec_2_b <- rpar_vec_2_a[names(rpar_vec_2_a) != "pf"]
+model_2_b <- CHECK_IF_MIXED_LOGIT_OBJ_EXISTS(MIXED_LOGIT_FILE_NAME_2_B, rpar_vec_2_b)
+```
+
+We can repeat the calculation we did for `cl`, this time with `pf` instead:
+```{r 2_b1}
+pnorm(-model_2_a$coef["pf"]/model_2_a$coef["sd.pf"])
+```
+
+The share of customers with negative price coefficients is given as `r pnorm(-model_2_a$coef["pf"]/model_2_a$coef["sd.pf"])` (very close to 1) as should be expected.
+
+\needspace{8\baselineskip}
+```{r 2_b2, eval = FALSE}
+### NOT RUN
+rpar_vec_2_b <- rpar_vec_2_a[names(rpar_vec_2_a) != "pf"]
+model_2_b <- mlogit(as.formula(paste0("choice ~ ",
+                                      paste0(pred_vars_2,
+                                             collapse = " + "),  # use all
+                                      " - 1")),  # no intercept
+                    data = data_2, rpar = rpar_vec_2_b, panel = TRUE)
+summary(model_2_b)
+```
+
+We can get the estimated price coefficient in the new model directly,
+```{r 2_b3}
+model_2_b$coefficients["pf"]
+```
+The estimated price coefficient in the new model is `r model_2_b$coefficients["pf"]`.
+
+The loglikelihood of the old and new models are
+```{r 2_b4}
+model_2_a$logLik
+model_2_b$logLik
+```
+which tells us that the model in [(a)](#twoa) is better as it has greater log likelihood of \linebreak `r model_2_a$logLik` as compared to the log likelihood of the model in this part which is `r model_2_b$logLik`.
+
+## (c)
+Q: You think that everyone must like using a known company rather than an unknown one, and yet the normal distribution implies that some people dislike using a known company. Revise the model to give the coefficient of `wk` a uniform distribution (do this with the price coefficient fixed). What is the estimated distribution for the coefficient of `wk` and the estimated price coefficient?
+
+\needspace{12\baselineskip}
+A:
+```{r 2_c_TO_AVOID_REESTIMATING, include = FALSE}
+MIXED_LOGIT_FILE_NAME_2_C <- "2_c_mixed_logit.rds"
+rpar_vec_2_c <- rpar_vec_2_b
+rpar_vec_2_c["wk"] <- "u"
+model_2_c <- CHECK_IF_MIXED_LOGIT_OBJ_EXISTS(MIXED_LOGIT_FILE_NAME_2_C, rpar_vec_2_c)
+```
+
+```{r 2_c1, eval = FALSE}
+### NOT RUN
+rpar_vec_2_c <- rpar_vec_2_b
+rpar_vec_2_c["wk"] <- "u"
+model_2_c <- mlogit(as.formula(paste0("choice ~ ",
+                                      paste0(pred_vars_2,
+                                             collapse = " + "),  # use all
+                                      " - 1")),  # no intercept
+                    data = data_2, rpar = rpar_vec_2_c, panel = TRUE)
+summary(model_2_c)
+```
+
+\needspace{6\baselineskip}
+A uniform distribution can be determined by its maximum and minimum,
+```{r 2_c2}
+summary(model_2_c)$summary.rpar["wk", c("Min.", "Max.")]
+```
+
+\needspace{8\baselineskip}
+The coefficient of price in this new model is given as,
+```{r 2_c3}
+model_2_c$coefficients["pf"]
+```
+
+Hence, the `wk` coefficient follows the distribution $\operatorname{Unif}\left(`r summary(model_2_c)$summary.rpar["wk", "Min."]`,`r summary(model_2_c)$summary.rpar["wk", "Max."]`\right)$ while the price coefficient in this new model is `r model_2_c$coefficients["pf"]`.
+
+\pagebreak
+
+# Question 3
+Suppose we perform best subset, forward stepwise, and backward stepwise selection on a single set. For each approach, we obtain *p*+1 models, containing 0, 1, 2, ..., *p* predictors. Provide your answers for the following questions:
+
+## (a)
+Q: Which of the three models with *k* predictors has the smallest training sum of squared errors?
+
+A: By definition, the best subset selection would select a subset of the predictors that would minimize training sum of squared errors, for any *k*.
+
+## (b)
+Q: Which of the three models with *k* predictors has the smallest test sum of squared errors?
+
+A: This is impossible to say as information of the test set is not considered in any of the three methods named. Fitting well on the training set does not necessarily generalise to fitting well on the test set.
+
+## (c)
+Q: Are the following statements **True** or **False**:
+
+### i.
+Q:  The predictors in the *k*-variable model identified by forward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by forward stepwise selection.
+
+A: True. Each step in the forward stepwise selection method corresponds to adding only 1 variable to the previous set, typically in greedy-like manner, and removals are never done.
+
+### ii.
+Q: The predictors in the *k*-variable model identified by backward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by backward stepwise selection.
+
+A:  True. In backward stepwise selection, we drop 1 variable at each step.
+
+### iii. {#threeciii}
+Q: The predictors in the *k*-variable model identified by backward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by forward stepwise selection.
+
+A: False.
+
+### iv. {#threeciv}
+Q: The predictors in the *k*-variable model identified by forward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by backward stepwise selection.
+
+A: False.
+
+### v.
+Q: The predictors in the *k*-variable model identified by best stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by best stepwise selection.
+
+A: False.
+
+Now we proceed to show what we mean by false in [iii.](#threeciii), [iv.](#threeciv) and in this part. Because it is not exactly known what the stepwise model selection methods do in the packages, we will build everything from the ground up (relatively).
+
+First of all, we perform some data generation. Our actual model is of the form
+\begin{equation*}
+y_{i} = \sum_{j=1}^{4}x_{ij} + \epsilon_{i} + \frac{1}{10}y_{i-1}
+\end{equation*}
+Where
+
+*  $x_{i1}\sim \mathcal{N}\left(0,1\right)$
+*  $x_{i2,i3,i4}\sim \mathcal{N}\left(\begin{pmatrix}0\\0\\0\end{pmatrix}, \begin{pmatrix}2& 0.5& 1.5\\0.5& 2& 0.8\\1.5& 0.8& 2\end{pmatrix}\right)$
+*  $\epsilon_{i}\sim \operatorname{Laplace}\left(0, 0.2\right)$
+*  $y_{-1}:=0$
+
+Additionally, in terms of 'data,' we will be including other random variables which are not relevant to $y$, while also providing a small dataset.
+```{r 3_c_v1}
+library(MASS)  # for multivariate normal
+suppressMessages(library(rmutil))  # for laplace distribution
+set.seed(1)
+N_3 <- 20
+num_pred_3 <- 10
+mat_3 <- matrix(nrow = N_3, ncol = num_pred_3 + 1)
+colnames(mat_3) <- c("y", paste0("x_", 1:num_pred_3))
+cov_mat_3 <- matrix(c(2, 0.5, 1.5, 0.5, 2, 0.8, 1.5, 0.8, 2), nrow = 3)
+y <- list()
+for (i in 1:N_3) {
+  x_2 <- rnorm(1)
+  x_N_3 <- mvrnorm(n = 1, mu = rep(0, 3), Sigma = cov_mat_3)
+  y[[i]] <- sum(x_N_3) +
+            x_2 +
+            rlaplace(1, s = 0.2) # mean 0 non gaussian error not in dataset
+  if (i > 2) {
+    y[[i]] <- y[[i]] + y[[i - 1]]/10
+  }
+  mat_3[i,] <- c(y[[i]],
+                 x_2,
+                 runif(2),
+                 rnorm(4),
+                 x_N_3**2
+                 )
+}
+head(mat_3, n = 5)  # to see a small part of the data
+```
+
+Next we need to look at all the possible models we can fit. We can encode each model with $\left\{0, 1\right\}^{`r num_pred_3 + 1`}$ as we can include or not include `r num_pred_3` predictors, with an additional boolean indicating if the intercept is used.
+
+```{r 3_c_v2}
+tf_list_3 <- list()
+num_pred_incl_int_3 <- num_pred_3 + 1
+for (i in 1:num_pred_incl_int_3) {
+  tf_list_3[[i]] <- c(TRUE, FALSE)
+}
+all_model_possibilities_3 <- expand.grid(tf_list_3)
+results_3 <- matrix(nrow = 2**num_pred_incl_int_3, ncol = 2)
+for (i in 1:2**num_pred_incl_int_3) {
+  formula_i <- "y ~ "
+  for (j in 1:num_pred_incl_int_3) {
+    if (j == num_pred_incl_int_3) {
+      if (all_model_possibilities_3[i, j]) {
+        # intercept
+        formula_i <- paste0(formula_i, " + 1")
+      } else {
+        formula_i <- paste0(formula_i, " - 1")
+      }
+    } else {
+      if (all_model_possibilities_3[i, j]) {
+        # the rest of the predictors
+        formula_i <- paste0(formula_i, " + x_",j)
+      }
+    }
+  }
+  mod_i <- lm(formula_i, data = as.data.frame(mat_3))
+  adjr_i <- summary(mod_i)$adj.r.squared
+  AIC_i <- AIC(mod_i)
+  results_3[i,] <- c(adjr_i, AIC_i)
+}
+```
+
+\needspace{16\baselineskip}
+Now that we have all the models, we can look into how step-wise selection processes will do, but before that we need to subset all models by the number of predictors:
+```{r 3_c_v3}
+results_list_3 <- vector("list", num_pred_incl_int_3 + 1)
+for (i in 1:2**num_pred_incl_int_3) {
+  num_pred_in_model_i <- 0
+  for (j in 1:num_pred_incl_int_3) {
+    if (all_model_possibilities_3[i, j]) {
+      num_pred_in_model_i <- num_pred_in_model_i + 1
+    }
+  }
+  results_list_3[[num_pred_in_model_i + 1]] <- c(
+    results_list_3[[num_pred_in_model_i + 1]], i)
+}
+```
+
+Finally, model selection. We note that it is not exactly clear what is referred to in terms of 'best' model, but we will try to maximise adjusted-$R^{2}$. We will also calculate the AIC, although this is not done for linear models in this course. 
+
+```{r 3_c_v4}
+models_and_results_3 <- cbind(all_model_possibilities_3, results_3)
+ajr_selectors_3 <- data.frame(as.list(1:num_pred_3))
+ajr_selectors_3 <- rbind(ajr_selectors_3,
+                        c(1:num_pred_3),
+                        c(1:num_pred_3))
+row.names(ajr_selectors_3) <- c("forward", "backward", "best")
+ajr_selectors_3[] <- ""
+aic_selectors_3 <- ajr_selectors_3  # just make a simple copy
+
+# We now make the stepwise selection functions, which will be iterated over
+# Not really a proper stepwise selector since it assumes we already have the 
+# results for all models
+get_next_step_subset_vars <- function(direction, current_subset,
+                                      current_results, result_idx,
+                                      previous_vars, higher_better = TRUE) {
+
+
+
+
+  if (direction == 'forward') {
+    # Eval Parse Construction not advisable
+    next_subset <- subset(current_subset,
+                          subset = eval(
+                            parse(text = paste0(previous_vars,
+                                                collapse = "&"))))
+
+  } else {
+    # if direction not forward, assumption is backward
+    next_subset <- subset(current_subset,
+                          subset = eval(
+                            parse(text = paste0("!",  # force false
+                                                previous_vars,
+                                                collapse = "&"))))
+  }
+  # is criterion 'better' while higher or lower?
+  if (higher_better) {
+    stepwise_best_model <- which.max(
+      current_results[row.names(next_subset),][,result_idx]
+      )
+  } else {
+    stepwise_best_model <- which.min(
+      current_results[row.names(next_subset),][,result_idx]
+      )
+  }
+  if (direction == 'forward') {
+    # give fixed variables in forward stepwise selection
+    forward_crit_vars <- c(previous_vars,
+                           names(which(unlist(next_subset[stepwise_best_model,]))))
+    forward_crit_vars <- unique(forward_crit_vars)
+    return(forward_crit_vars)
+  } else {
+    # give removed variables to never be added back in for
+    # backward stepwise selection
+    back_remaining_vars <- names(
+      which(unlist(next_subset[stepwise_best_model,]))
+      )
+    back_removed_vars <- setdiff(names(all_model_possibilities_3),
+                                 back_remaining_vars)
+    return(back_removed_vars)
+  }
+}
+# cosmetic wrapper
+proc_vars <- function(input_vars) {
+  paste0("{", toString(substring(input_vars, 4)), "}")
+}
+```
+
+\needspace{10\baselineskip}
+Then we finally get to iterating:
+```{r 3_c_v5}
+# 1 and last one ignored, since no model selection required
+for (i in 1:num_pred_3) {
+  result_size_i <- results_3[results_list_3[[i + 1]],]
+  subset_i <- all_model_possibilities_3[results_list_3[[i + 1]],]
+  row.names(result_size_i) <- row.names(subset_i)
+
+  # Best Selectors
+  # ajr_max <- which(result_size_i[,1] == max(result_size_i[,1]))
+  ajr_max <- which.max(result_size_i[,1])
+  ajr_selectors_3["best", i] <- paste0("{",
+                                      toString(which(unlist(
+                                        subset_i[ajr_max,]))),
+                                      "}")
+  # aic_min <- which(result_size_i[,2] == min(result_size_i[,2]))
+  aic_min <- which.min(result_size_i[,2])
+  aic_selectors_3["best", i] <- paste0("{",
+                                     toString(which(unlist(
+                                       subset_i[aic_min,]))),
+                                     "}")
+  # Multiple maxes not used because the toString line
+  # does not work well with multiple possibilities
+  # note that AIC minimizers are not unique
+  
+  # Forward Stepwise Selection
+  if (i == 1) {
+    # first time
+    forw_ajr_vars <- names(which(unlist(subset_i[ajr_max,])))
+    forw_aic_vars <- names(which(unlist(subset_i[aic_min,])))
+  } else {
+    # all other times
+    forw_ajr_vars <- get_next_step_subset_vars(
+      'forward', subset_i, result_size_i, 1,
+      forw_ajr_vars, higher_better = TRUE
+      )
+    forw_aic_vars <- get_next_step_subset_vars(
+      'forward', subset_i, result_size_i, 2,
+      forw_aic_vars, higher_better = FALSE
+      )
+  }
+  ajr_selectors_3["forward", i] <- proc_vars(forw_ajr_vars)
+  aic_selectors_3["forward", i] <- proc_vars(forw_aic_vars)
+
+
+  # Backward Stepwise Selection
+  k <- num_pred_3 - i + 2
+  result_size_k <- results_3[results_list_3[[k]],]
+  subset_k <- all_model_possibilities_3[results_list_3[[k]],]
+  row.names(result_size_k) <- row.names(subset_k)
+  if (i == 1) {
+    # unlike forward selection, we want to remove variables
+    back_ajr_surviving_vars <- names(which(unlist(subset_k[ajr_max,])))
+    back_ajr_rm_vars <- setdiff(names(subset_k), back_ajr_surviving_vars)
+    back_aic_surviving_vars <- names(which(unlist(subset_k[aic_min,])))
+    back_aic_rm_vars <- setdiff(names(subset_k), back_aic_surviving_vars)
+  } else {
+    back_ajr_rm_vars <- get_next_step_subset_vars(
+      'backward', subset_k,result_size_k, 1,
+      back_ajr_rm_vars, higher_better = TRUE
+      )
+    back_ajr_surviving_vars <- setdiff(names(all_model_possibilities_3),
+                                       back_ajr_rm_vars)
+    back_aic_rm_vars <- get_next_step_subset_vars(
+      'backward', subset_k,result_size_k, 2,
+      back_aic_rm_vars, higher_better = FALSE
+      )
+    back_aic_surviving_vars <- setdiff(names(all_model_possibilities_3),
+                                       back_aic_rm_vars)
+  }
+  ajr_selectors_3["backward", k - 1] <- proc_vars(back_ajr_surviving_vars)
+  aic_selectors_3["backward", k - 1] <- proc_vars(back_aic_surviving_vars)
+}
+```
+
+Note that we have not exactly exactly reproduced the algorithm for producing the models that are chosen in the forward and backward stepwise selection, as we have already calculated the results for all models, which would be done in order to find the 'best' model. Note that both criteria disagree on the best model:
+```{r 3_c_v6}
+all_model_possibilities_3[c(which.max(results_3[,1]),
+                            which.min(results_3[,2])),]
+```
+The first row shows the best model according to adjusted-$R^{2}$, while the second row shows the best model according to AIC. In this case, it seems that adjusted-$R^{2}$ is the better selector as it correctly picks more of the last few variables, although it should be noted that the data generation process and data given were wildly different.
+
+We can show a simple counterexample to [iii.](#threeciii), [iv.](#threeciv) and this part with the following:
+```{r 3_c_v7}
+ajr_selectors_3[1:2]
+```
+[iii.](#threeciii): The 1-variable model identified by backward stepwise selection with variable `2` is not a subset of the 2-variable model as identified by forward stepwise selection, which chose variables `7` and `6`. 
+
+[iv.](#threeciv): The 1-variable model identified by forward stepwise selection with the variable `7` is not a subset of the 2-variable model as identified by the backward stepwise selection which are variables `2` and `11`. Note that the 1-variable forward stepwise selection should be identical to the 1-variable best model.
+
+This part: The 1-variable model identified by the best size-1 subset selection chose `7`, which is not a subset of the 2-variable model identified by the best size-2 subset selection, which chose `2` and `10`.
+
+We display the results of the model selection process. Note that the backward stepwise selection row should be read backwards. 
+```{r 3_c_v8}
+ajr_selectors_3
+aic_selectors_3
+```
+
+\pagebreak
+
+# Question 4
+## (a)
+Q:  Split the data set into a training set and a test set using the seed 1 and the `sample()` function with 80% in the training set and 20% in the test set. How many observations are there in the training and test sets?
+
+A: 
+```{r 4_a}
+df_4 <- read.csv("College.csv")
+set.seed(1)
+trainid_4 <- sample(1:nrow(df_4), 0.8*nrow(df_4))
+testid_4 <- -trainid_4
+train_4 <- df_4[trainid_4,]
+test_4 <- df_4[testid_4,]
+```
+There are `r nrow(train_4)` observations in the training set, and `r nrow(test_4)` observations in the test set.
+
+## (b) {#fourb}
+Q: Fit a linear model using least squares on the training set. What is the average sum of squared error of the model on the training set? Report on the average sum of squared error on the test set obtained from the model.
+
+A: 
+```{r 4_b}
+model_4_b <- lm(Apps ~ ., data = train_4)
+# summary(model_4)
+pred_4_b <- predict(model_4_b, newdata = test_4)
+mean(model_4_b$residuals^2)
+mean((test_4$Apps - pred_4_b)^2)
+```
+
+The average sum of squared error on the training set is `r format(mean(model_4_b$residuals^2), scientific=FALSE)` while the average sum of squared error on the test set is `r format(mean((test_4$Apps - pred_4_b)^2), scientific=FALSE)`.
+
+## (c)
+Q: Use the backward stepwise selection method to select the variables for the regression model on the training set. Which is the first variable dropped from the set?
+
+A: 
+```{r 4_c}
+library(leaps)
+regsubsets_4 <- regsubsets(Apps~., data = train_4,
+                           nvmax = NULL,  # alternatively, 17
+                           method = "backward")
+sum_regsubsets_4 <- summary(regsubsets_4)
+names(which(sum_regsubsets_4$which[(ncol(train_4) - 2),] == FALSE))
+```
+
+The first variable to be dropped from the set is ``r names(which(sum_regsubsets_4$which[(ncol(train_4) - 2),] == FALSE))``.
+
+## (d) {#fourd}
+Q: Plot the adjusted-$R^{2}$ for all these models. If we choose the model based on the best adjusted-$R^{2}$ value, which variables should be included in the model?
+
+A: The plot is easily done in R with the following command:
+```{r 4_d1, fig.align = "center"}
+plot(sum_regsubsets_4$adjr2, ylab = expression(paste("Adjusted R"^"2")))
+```
+
+The model with the best adjusted-$R^{2}$ is the model with the highest adjusted-$R^{2}$:
+```{r 4_d2, echo = 1:4, results = "hold"}
+best_model_size_4 <- which.max(sum_regsubsets_4$adjr2)
+best_model_size_4
+best_model_vars_4_d <- names(which(sum_regsubsets_4$which[best_model_size_4,]))
+best_model_vars_4_d
+x <- best_model_vars_4_d
+x <- x[x != "(Intercept)"]  # taking out intercept
+DISPLAYED_VARS_PRINT_FORM_4_D <- paste0(paste0("`", x[-length(x)], "`"), collapse = ", ")
+LAST_VAR_PRINT_FORM_4_D <- paste0(paste0("`", x[length(x)], "`"), collapse = ", ")
+x <- names(which(!sum_regsubsets_4$which[best_model_size_4,]))
+DROPPED_VARS_PRINT_FORM_4_D <- paste0(paste0("`", x[-length(x)], "`"), collapse = ", ")
+LAST_DROPPED_VAR_PRINT_FORM_4_D <- paste0(paste0("`", x[length(x)], "`"), collapse = ", ")
+```
+In addition to the intercept, the variables `r DISPLAYED_VARS_PRINT_FORM_4_D` and `r LAST_VAR_PRINT_FORM_4_D` should be included in the model. The variables `r DROPPED_VARS_PRINT_FORM_4_D` and `r LAST_DROPPED_VAR_PRINT_FORM_4_D` should be dropped from the model.
+
+\needspace{12\baselineskip}
+## (e)
+Q:  Use the model identified in part [(d)](#fourd) to estimate the average sum of squared test error. Does this improve on the model in part [(b)](#fourb) in the prediction accuracy?
+
+A: 
+```{r 4_e}
+# Unfortunately, due to how the original dataframe uses 'Yes' and 'No'
+# We need to change how it is encoded here
+# Alternatively, just change the original dataframe 'Private' column
+# with an ifelse depending on the values
+best_model_vars_4_d <- replace(best_model_vars_4_d,
+                               best_model_vars_4_d == "PrivateYes",
+                               "Private")
+model_4_e <- lm(as.formula(paste0("Apps ~ ",
+                                  paste0(setdiff(best_model_vars_4_d,
+                                                 "(Intercept)"),
+                                         collapse = " + "))),
+                data = train_4)
+# summary(model_4_e)
+pred_4_e <- predict(model_4_e, newdata = test_4)
+mean((test_4$Apps - pred_4_e)^2)
+```
+
+Since the test error with this model is `r format(mean((test_4$Apps - pred_4_e)**2), scientific = FALSE)` which is lower than `r format(mean((test_4$Apps - pred_4_b)^2), scientific = FALSE)`, this has improved as compared to the model in part [(b)](#fourb) in the prediction accuracy.
+
+## (f)
+Q: Fit a LASSO model on the training set. Use the command to define the grid for $\lambda$:
+
+`grid <- 10^seq(10, -2, length = 100)`
+
+Plot the behavior of the coefficients as $\lambda$ changes.
+
+A: First we can initialise the `grid` then run `glmnet` to fit the LASSO model with differing $\lambda$ values:
+```{r 4_f1}
+suppressMessages(library(glmnet))
+grid <- 10^seq(10, -2, length = 100)
+glm_x_4 <- model.matrix(Apps~., df_4)
+glm_y_4 <- df_4$Apps
+model_4_f <- glmnet(glm_x_4[trainid_4,],
+                    glm_y_4[trainid_4],
+                    lambda = grid)
+```
+
+Then we plot,
+```{r 4_f2}
+plot(model_4_f, xvar = "lambda")
+```
+
+## (g)
+Q: Set the seed to 1 before running the cross-validation with LASSO to choose the best $\lambda$. Use 10-fold cross validation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+A: 
+```{r 4_g, results = "hold"}
+set.seed(1)
+model_4_g <- cv.glmnet(glm_x_4[trainid_4,], glm_y_4[trainid_4],
+                  nfolds = 10, lambda = grid)  # 10-fold cross-validation
+best_lambda_ind_4 <- which(model_4_g$lambda == model_4_g$lambda.min)
+mean((predict(model_4_g, glm_x_4[testid_4,],
+              s = model_4_g$lambda.min
+              ) - test_4$Apps)^2)  # test error of best model
+model_4_g$nzero[best_lambda_ind_4]  # number of non-zero coefficients
+```
+
+The number of non-zero coefficients is `r model_4_g$nzero[best_lambda_ind_4]`. This means that the model is essentially the same as the model in part [(b)](#fourb) as it uses the same predictor variables, the test error of `r format(mean((predict(model_4_g, glm_x_4[testid_4,], s = model_4_g$lambda.min) - test_4$Apps)^2), scientific = FALSE)` is approximately the same. 

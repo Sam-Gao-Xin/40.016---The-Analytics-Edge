@@ -1,0 +1,568 @@
+---
+title: "Week 4 & 5 Exercise Solutions"
+output:
+  html_notebook: default
+  html_document: default
+  pdf_document: default
+---
+
+#  Question 1
+## (a) {#onea}
+Q: Run a logit model with installation cost and operating cost as the only explanatory variables, without intercepts.
+
+A: We need to prepare the data for `mlogit()` using `mlogit.data()` first. The most important column is the column of choices, which we will use to get all of the other columns. We note that we assume that the data has been prepared and that the columns have the alternative names within them.
+
+We just read in the data first:
+```{r}
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Exercise/Week 4")
+rm(list=ls())
+#install.packages(mlogit)
+library(mlogit)
+heating <- read.csv("Heating(7).csv")
+head(heating)
+str(heating)
+```
+
+
+For creating the required data we use the function mlogit.data, the different arguments are explained on the side.
+We need to choose columns 3 to 12 for the explanatory variables. This is also a wide data set.
+```{r}
+dataheat <- mlogit.data(heating,  # data.frame of data
+                    choice = "depvar",  # column name of choice
+                    shape = "wide",  # wide means each row is an observation
+                                     # long if each row is an alternative
+                    varying = c(3:12), # indices of varying columns for each alternative,
+                    sep = "."  # not necessary but still good to be clear
+                    )
+```
+
+Then, we can run `mlogit()` on the data:
+```{r}
+modelQ1_1 <- mlogit(depvar ~ ic + oc - 1, dataheat)  # -1 means no intercept
+summary(modelQ1_1)
+```
+
+\needspace{10\baselineskip}
+### i.
+Q: Do the estimated coefficients have the expected signs?
+
+A: 
+```{r}
+coef(modelQ1_1)
+```
+The coefficients of both `ic` and `oc` are negative which makes sense since as the installation cost and operating cost for a system increases, the probability of choosing that system goes down.
+
+### ii.
+Q: Are both coefficients significantly different from zero?
+
+A: Since both p-values are below 2.2e-16 and we see three stars, we can claim that the coefficients are significantly different than zero.
+```{r}
+summary(modelQ1_1)
+```
+
+
+### iii.
+Q: Use the average of the probabilities to compute the predicted share. Compute the actual shares of houses with each system. How closely do the predicted shares match the actual shares of houses with each heating system?
+
+A: 
+We can get the actual shares in the data with the following code:
+```{r}
+#Calculation of the average of the probabilities of the actual shares of the house
+table(heating$depvar)/nrow(heating)
+
+#Calculation of the average of the probabilities of the predicted share of the house
+predQ1_1<- predict(modelQ1_1, newdata = dataheat)
+apply(predQ1_1, 2, mean)
+```
+
+While the model captures the essence of the data reasonably, there are a few differences in the predicted shares. For example in `gc` and `gr` there seems to be quite a gap.
+
+### iv. 
+Q:  The ratio of coefficients usually provides economically meaningful information in discrete choice models. The willingness to pay (*wtp*) through higher installation cost for a one-dollar reduction in operating costs is the ratio of the operating cost coefficient to the installation cost coefficients. What is the estimated *wtp* from this model? Note that the annual operating cost recurs every year while the installation cost is a one-time payment. Does the result make sense?
+
+A: 
+\begin{equation*}
+\frac{\beta_{oc}}{\beta_{ic}}=`r coef(modelQ1_1)["oc"]/coef(modelQ1_1)["ic"]`
+\end{equation*}
+
+
+According to this model, the decision-makers are willing to pay \$ 0.739 higher in installation cost for a \$1 reduction in operating cost. It seems unreasonable for the decision-maker to pay only 74 cents higher for a one-time payment for a \$1 reduction in annual costs.
+
+```{r}
+wtp1 <- as.numeric(coef(modelQ1_1)["oc"]/coef(modelQ1_1)["ic"])
+wtp1
+```
+
+
+
+## (b) {#oneb}
+Q:  The present value ($PV$) of the future operating costs is the discounted sum of operating costs over the life of the system: $PV=\sum_{t=1}^{L}[OC/(1+r)^{t}]$ where *r* is the discount rate and *L* is the life of the system. As *L* rises, the PV approaches *OC/r*. Therefore, for a system with a sufficiently long life (which we will assume these systems have), a one-dollar reduction in *OC* reduces the present value of future operating costs by *(1/r)*. This means that if the person choosing the system were incurring the installation costs and the operating costs over the life of the system, and rationally traded-off the two at a discount rate of *r*, the decision-maker’s *wtp* for operating cost reductions would be *(1/r)*. Define a new variable `lcc` (lifecycle cost) that is defined as the sum of the installation cost and the (operating cost)/*r*. Run a logit model with the lifecycle cost as the only explanatory variable. Estimate the model for r = 0.12.  Comment on the value of log-likelihood of the models obtained in [(a)](#onea) as compared to [(b)](#oneb).
+
+A: We first make a column called `lcc` with our `dataheat` object
+```{r}
+dataheat$lcc <- dataheat$ic + dataheat$oc/0.12
+```
+We then estimate with the `mlogit()` function, and call `logLik()` to get the log likelihood for this model:
+```{r 1_b2}
+modelQ1_2 <- mlogit(depvar ~ lcc - 1, dataheat)
+logLik(modelQ1_2)
+```
+
+The log likelihood of the model is `r logLik(modelQ1_2)`.
+
+For comparison, we retrieve the log likelihood of the model in part (a):
+```{r 1_b3}
+logLik(modelQ1_1)
+```
+
+The log likelihood of the model from (a) is `r logLik(modelQ1_1)`.
+
+Notice that the log likelihood of the model in (a) is higher (better, more likely) than that of the model in this part. 
+
+
+## (c) {#onec}
+Q: Add alternative-specific constants to the model in (a). With *K* alternatives, at most *K-1* alternative specific constants can be estimated. The coefficient of *K-1* constants are interpreted as relative to *K*th alternative. Normalize the constant for the alternative `hp` to 0.
+
+\needspace{8\baselineskip}
+A: Running `mlogit()` with a reference level. We observe that the share obtained here is the average share. This is guaranteed by the presence of alternative specific constants.
+```{r}
+modelQ1_3 <- mlogit(depvar ~ ic + oc, data = dataheat, reflevel = "hp")
+summary(modelQ1_3)
+# This forces hp to be the reference level and the other alternative specific constants are relative to this
+```
+
+### i.
+Q: How well do the estimated probabilities match the shares of customers choosing each alternative in this case?
+
+A: We can get the predicted shares:
+```{r 1_c_i}
+predQ1_3<- predict(modelQ1_3, newdata=dataheat)
+shareQ1_3<- apply(predQ1_3,2,mean)
+shareQ1_3
+```
+
+We notice that the predicted shares match the actual shares exactly. This is guaranteed with the use of the alternative specific constants.
+
+### ii.
+Q: Calculate the *wtp* that is implied by the estimate. Is this reasonable?
+
+A:
+We calculate the willingness to pay:
+```{r 1_c_ii}
+unname(modelQ1_3$coefficients["oc"]/modelQ1_3$coefficients["ic"])
+```
+Hence:
+\begin{equation*}
+\frac{\beta_{oc}}{\beta_{ic}}=`r unname(modelQ1_3$coefficients["oc"]/modelQ1_3$coefficients["ic"])`
+\end{equation*}
+which suggests an extra down-payment of \$ 4.56 for a \$1 saving in annual operating costs. This seems more reasonable.
+
+### iii.
+Q: Suppose you had included constants for alternatives `ec`, `er`, `gc`, `hp` with the constant for alternative `gr` normalized to zero. What would be the estimated coefficient of the constant for alternative `gc`? Can you figure this out logically rather than actually estimating the model?
+
+\needspace{10\baselineskip}
+A: Note that in  modelQ1_3, the intercept for `gr` is 0.308. Here `gr` is the reference level. So in teh new model all the alternative specific constants are reduced by 0.308. Nothing else chages and the quality of fit remains unchanged.
+```{r}
+summary(modelQ1_3)
+
+### Check that you are right.
+modelQ1_4 <- mlogit(depvar ~ ic + oc, data = dataheat, reflevel = "gr")
+summary(modelQ1_4)
+
+```
+
+\needspace{12\baselineskip}
+## (d)
+Now try some models with sociodemographic variables entering.
+
+### i.
+Q: Enter installation cost divided by income, instead of installation cost. With this specification, the magnitude of the installation cost coefficient is inversely related to income, such that high-income households are less concerned with installation costs than lower-income households. Does dividing installation cost by income seem to make the model better or worse than the model in [(c)](#onec)?
+
+\needspace{6\baselineskip}
+A: Fitting the model first
+```{r}
+dataheat$iic <- dataheat$ic/dataheat$income
+modelQ1_5 <- mlogit(depvar ~ oc + iic, dataheat)
+summary(modelQ1_5)
+```
+
+The log-likelihood here is -1010.2 which is lower than -1008.2 for model4 and hence is worse. Moreover installation cost was significant in the earlier model and here the installation cost divided by income is not significant any more.
+
+
+### ii.
+Q: Instead of dividing installation cost by income, enter alternative-specific income effects. You can do this by using the `|` argument in the mlogit formula. What do the estimates imply about the impact of income on the choice of central systems versus room system? Do these income terms enter significantly?
+
+A:
+```{r}
+modelQ1_6 <- mlogit(depvar ~ oc + ic | income, dataheat)  
+summary(modelQ1_6)
+```
+All of the coefficients are negative which tells us that income rises, probability of choosing a heat pump increases relative to others, The magnitude of the income coefficient for `gr` is the greatest so we can infer that as income rises, probability of choosing gas rooms drops relative to others.
+None of the income terms are significant at the 5% significance level.
+
+## (e)
+Q: We now are going to consider the use of the logit model for prediction. Estimate a model with installation costs, operating costs, and alternative specific constants. Calculate the probabilities for each house explicitly.
+
+### i.
+Q: The California Energy Commission (CEC) is considering whether to offer rebates on heat pumps. The CEC wants to predict the effect of the rebates on the heating system choices of customers in California. The rebates will be set at 10% of the installation cost. Using the estimated coeffiients from the model, calculate predicted shares under this new installation cost instead of original value. How much do the rebates raise the share of houses with heat pumps?
+
+A: We create a new dataframe via copying and then changing a column, and then create a new `mlogit.data` object:
+```{r}
+heating1 <- heating
+heating1$ic.hp <- 0.9*heating1$ic.hp
+dataheat1 <- mlogit.data(heating1, choice = "depvar", shape = "wide", varying = c(3:12))
+```
+
+\needspace{8\baselineskip}
+We can then use the old model as-is with the newly created data:
+```{r}
+predQ1_3a <- predict(modelQ1_3, newdata = dataheat1)
+shareQ1_3a <- apply(predQ1_3a, 2, mean)
+shareQ1_3a
+```
+
+The share of houses with heat pumps rises from 0.055 to 0.0645.
+
+### ii.
+Q: Suppose a new technology is developed that provides more efficient central heating. The new technology costs 200 more than the electric central heating system. However it saves 25% of the electricity such that its operating costs are 75% of the operating costs of `ec`. We want to predict the original market penetration of this technology. Note that there are now 6 alternatives instead of 5. Calculate the probability and predict the market share (average probability) for all 6 alternatives using the model that is estimated on the 5 alternatives. Use the original installation costs for the heat pumps rather than the reduced costs from the previous question. What is the predicted market share for the new technology? From which of the original five systems does the new technology draw the most customers?
+
+\needspace{8\baselineskip}
+A: We want to compute the choice probabilities using closed form formula:
+\begin{equation*}
+\mathbb{P}\left(\text{Choice $k$=$j$}\right)=\frac{\exp\left(\sum_{i\in \mathcal{I}}\beta_{ij}x_{ij}\right)}{\sum_{l\in\mathcal{J}}\exp\left(\sum_{i\in \mathcal{I}}\beta_{il}x_{il}\right)}
+\end{equation*}
+where $i$ refers to each predictor, including the intercept. The intercept always has corresponding $x_{0j}$ value of 1, and coefficient of the intercept $\beta_{0j}$ for the reference level is 0. The indices $j$ refers to each choice or alternative while $k$ can be treated as the choice random variable and takes the values the choices are encoded as.
+
+Unfortunately, first we will need to introduce columns that the new choice represents, and then we can calculate this.
+
+
+```{r}
+df<- subset(heating, select = c(3:12))
+
+# New columns
+df$ic.eci <- df$ic.ec + 200
+df$oc.eci <- df$oc.ec * 0.75
+
+```
+
+We will use modelQ1_3 to compute the new choice probabilities
+```{r}
+df$hpexp<-exp(modelQ1_3$coefficients["oc"]*df$oc.hp+modelQ1_3$coefficients["ic"]*df$ic.hp)
+
+df$ecexp<-exp(modelQ1_3$coefficients["oc"]*df$oc.ec+modelQ1_3$coefficients["ic"]*df$ic.ec+modelQ1_3$coefficients["(Intercept):ec"])
+
+df$erexp<-exp(modelQ1_3$coefficients["oc"]*df$oc.er+modelQ1_3$coefficients["ic"]*df$ic.er+modelQ1_3$coefficients["(Intercept):er"])
+
+df$gcexp<-exp(modelQ1_3$coefficients["oc"]*df$oc.gc+modelQ1_3$coefficients["ic"]*df$ic.gc+modelQ1_3$coefficients["(Intercept):gc"])
+
+df$grexp<-exp(modelQ1_3$coefficients["oc"]*df$oc.gr+modelQ1_3$coefficients["ic"]*df$ic.gr+modelQ1_3$coefficients["(Intercept):gr"])
+
+df$eciexp<-exp(modelQ1_3$coefficients["oc"]*df$oc.eci+modelQ1_3$coefficients["ic"]*df$ic.eci+modelQ1_3$coefficients["(Intercept):ec"])
+               
+               
+
+df$sumexp <-apply(subset(df,select=c(13:17)),1,sum)
+df$sumexpnew <-apply(subset(df,select=c(13:18)),1,sum)
+
+
+df$hp <-df$hpexp/df$sumexp
+df$ec <-df$ecexp/df$sumexp
+df$er <-df$erexp/df$sumexp
+df$gc <-df$gcexp/df$sumexp
+df$gr <-df$grexp/df$sumexp
+
+df$hpnew <-df$hpexp/df$sumexpnew
+df$ecnew <-df$ecexp/df$sumexpnew
+df$ernew <-df$erexp/df$sumexpnew
+df$gcnew <-df$gcexp/df$sumexpnew
+df$grnew <-df$grexp/df$sumexpnew
+df$ecinew <-df$eciexp/df$sumexpnew
+
+
+
+
+oldprob<-subset(df,select=c(21:25))
+newprob<-subset(df,select=c(26:31))
+
+
+marketshareold<-apply(oldprob,2,mean)
+
+
+marketsharenew<-apply(newprob,2,mean)
+
+
+marketshareold
+
+marketsharenew
+
+```
+\pagebreak
+
+The new technology is predicted to have a marketshare of about 10.3\%
+
+The most market share is drawn from gas central whose marketshare falls from 63.67\% to 57.15\%. Note that from the independence of irrelevent alternatives (IIA) property, the ratio of market shares remains the same irrespective of other alternatives in the set. The drop in percentage is roughly 10\% from each system due to IIA. It might have been expected that the new electric central heating system would possibly draw more from the old electric central heating system rather than gas central (which just happens to have the greatest market share) but the multinomial logit with the IIA property is unable to account for this.
+
+
+
+\pagebreak
+
+# Question 2
+## (a) {#twoa}
+Q: Run a mixed logit model without intercepts and a normal distribution for the 6 parameters of the model and taking into account the panel data structure.
+
+A: In this question the choices are located in column named `choice`, and we prepare for `mlogit()` with useful aliases:
+```{r}
+library(mlogit)
+electricity <- read.csv("Electricity.csv")
+electricity_data<-mlogit.data(electricity, id.var = "id", choice = "choice",
+                      varying = c(3:26), shape = "wide", sep = "")
+modelQ2_1<- mlogit(choice~pf+cl+loc+wk+tod+seas-1,electricity_data, rpar=c(pf='n',cl='n',loc='n',wk='n',tod='n', seas='n'),panel=T,print.level=T)
+summary(modelQ2_1)
+```
+
+
+
+### i.
+Q: Using the estimated mean coefficients, determine the amount that a customer with average coefficients for price and length is willing to pay for an extra year of contract length.
+
+\needspace{8\baselineskip}
+A: We find the mean contract length coefficients, mean price coefficient and determine what they are willing to pay for an extra year of contract length.
+```{r}
+modelQ2_1$coefficients["cl"]
+modelQ2_1$coefficients["pf"]
+as.numeric(modelQ2_1$coefficients["cl"]/modelQ2_1$coefficients["pf"])
+```
+
+The mean coefficient of contract length is around -0.18 indicating consumers prefer shorter contracts. Since the mean price coefficient is -0.84, a customer will pay around $(0.18/0.84)*100 \sim 21$ cents per kWh to reduce contract length by 1 year.
+
+### ii.
+Q: Determine the share of the population who are estimated to dislike long term contracts (i.e. have a negative coefficient for the length.)
+
+A: We can get the coefficients that determine the distribution we are looking at with the following:
+```{r}
+modelQ2_1$coefficients[c("cl", "sd.cl")]
+```
+
+We have assumed that the population has a contract coefficient which is normally distributed, so we simply need to get the CDF of this distribution up to 0. (That is, the probability that a random variate that is sampled from this distribution is negative. We have that the contract length coefficient follows a normal distribution with mean -0.18 and standard deviation 0.31. Now we can calculate the probability using `pnorm`:
+```{r}
+pnorm(0, as.numeric(modelQ2_1$coefficients["cl"]),as.numeric(modelQ2_1$coefficients["sd.cl"]))
+```
+Hence, around 72\% of the population dislike long contracts.
+
+## (b)
+Q: The price coefficient is assumed to be normally distributed in these runs. This assumption means that some people are assumed to have positive price coefficients, since the normal distribution has support on both sides of zero. Using your estimates from before, determine the share of customers with positive price coefficients (Hint: Use the `pnorm` function to calculate this share). As you can see, this is pretty small share and can probably be ignored. However, in some situations, a normal distribution for the price coefficient will give a fairly large share with the wrong sign. Revise the model to make the price coefficient fixed rather than random. A fixed price coefficient also makes it easier to calculate the distribution of willingness to pay (*wtp*) for each non-price attribute. If the price coefficients fixed, the distribution of wtp for an attribute has the same distribution as the attribute’s coefficient, simply scaled by the price coefficient. However, when the price coefficient is random, the distribution of *wtp* is the ratio of two distributions, which is harder to work with. What is the estimated value of the price coefficient? Compare the log likelihood of the new model with the old model.
+
+\needspace{8\baselineskip}
+A: We can repeat the calculation we did for `cl`, this time with `pf` instead. The share of customers with negative price coefficients is given as 0.9999998 (very close to 1) as should be expected. 
+```{r}
+pnorm(0, as.numeric(modelQ2_1$coefficients["pf"]),as.numeric(modelQ2_1$coefficients["sd.pf"]))
+1-pnorm(0, as.numeric(modelQ2_1$coefficients["pf"]),as.numeric(modelQ2_1$coefficients["sd.pf"]))
+```
+ 
+
+\needspace{8\baselineskip}
+In the new model the price coefficient is fixed.
+```{r}
+modelQ2_2<- mlogit(choice~pf+cl+loc+wk+tod+seas-1,electricity_data, rpar=c(cl='n',loc='n',wk='n',tod='n', seas='n'),panel=T,print.level=T)
+summary(modelQ2_2)
+```
+
+We can get the estimated price coefficient in the new model directly,
+```{r 2_b3}
+modelQ2_2$coefficients["pf"]
+```
+The estimated price coefficient in the new model is `r modelQ2_2$coefficients["pf"]`.
+
+The loglikelihood of the old and new models are
+```{r 2_b4}
+modelQ2_1$logLik
+modelQ2_2$logLik
+```
+
+This tells us that the model in part (a) is better as it has greater log likelihood of `r modelQ2_1$logLik` as compared to the log likelihood of the model in this part (b) which is `r modelQ2_2$logLik`.
+
+## (c)
+Q: You think that everyone must like using a known company rather than an unknown one, and yet the normal distribution implies that some people dislike using a known company. Revise the model to give the coefficient of `wk` a uniform distribution (do this with the price coefficient fixed). What is the estimated distribution for the coefficient of `wk` and the estimated price coefficient?
+
+\needspace{12\baselineskip}
+A: Here we specify that the `wk` parameter follows uniform and `pf` is still fixed.
+```{r}
+modelQ2_3<-mlogit(choice~pf+cl+loc+wk+tod+seas-1,electricity_data, rpar=c(cl='n',loc='n',wk='u',tod='n', seas='n'),panel=T,print.level=T)
+summary(modelQ2_3)
+```
+
+\needspace{6\baselineskip}
+A uniform distribution can be determined by its  minimum and maximum. 
+```{r}
+summary(modelQ2_3)$summary.rpar["wk", c("Mean", "Min.", "Max.")]
+modelQ2_3$coefficients["pf"]
+```
+
+Hence we can conclude that `wk` follows a Uniform distribution between $(0.133, 2.588)$ with mean 1.36.
+
+The coefficient of price in this new model is -0.811.
+
+
+# Question 3
+Suppose we perform best subset, forward stepwise, and backward stepwise selection on a single set. For each approach, we obtain *p*+1 models, containing 0, 1, 2, ..., *p* predictors. Provide your answers for the following questions:
+
+## (a)
+Q: Which of the three models with *k* predictors has the smallest training sum of squared errors?
+
+A: By definition, the best subset selection would select a subset of the predictors that would minimize training sum of squared errors, for any *k*.
+
+## (b)
+Q: Which of the three models with *k* predictors has the smallest test sum of squared errors?
+
+A: This is impossible to say as information of the test set is not considered in any of the three methods named. Fitting well on the training set does not necessarily generalize to fitting well on the test set.
+
+## (c)
+Q: Are the following statements **True** or **False**:
+
+### i.
+Q:  The predictors in the *k*-variable model identified by forward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by forward stepwise selection.
+
+A: True. Each step in the forward stepwise selection method corresponds to adding only 1 variable to the previous set, typically in greedy-like manner, and removals are never done.
+
+### ii.
+Q: The predictors in the *k*-variable model identified by backward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by backward stepwise selection.
+
+A:  True. In backward stepwise selection, we drop 1 variable at each step.
+
+### iii. {#threeciii}
+Q: The predictors in the *k*-variable model identified by backward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by forward stepwise selection.
+
+A: False.
+
+### iv. {#threeciv}
+Q: The predictors in the *k*-variable model identified by forward stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by backward stepwise selection.
+
+A: False.
+
+### v.
+Q: The predictors in the *k*-variable model identified by best stepwise selection are a subset of the predictors in the (*k*+1)-variable model identified by best stepwise selection.
+
+A: False.
+
+
+
+
+# Question 4
+## (a)
+Q:  Split the data set into a training set and a test set using the seed 1 and the `sample()` function with 80% in the training set and 20% in the test set. How many observations are there in the training and test sets?
+
+A:
+```{r}
+college <- read.csv("College.csv")
+set.seed(1)
+trainid <- sample(1:nrow(college), 0.8*nrow(college))
+testid <- -trainid
+train <- college[trainid,]
+test <- college[testid,]
+nrow(train)
+nrow(test)
+```
+There are `r nrow(train)` observations in the training set, and `r nrow(test)` observations in the test set.
+
+## (b) {#fourb}
+Q: Fit a linear model using least squares on the training set. What is the average sum of squared error of the model on the training set? Report on the average sum of squared error on the test set obtained from the model.
+
+A:
+```{r}
+modelQ4_1 <- lm(Apps ~ ., data = train)
+
+#summary(modelQ4_1)
+
+SSE_tr<- mean(modelQ4_1$residuals^2)
+
+predQ4_1 <- predict(modelQ4_1, newdata = test)
+
+SSE_te<-mean((test$Apps - predQ4_1)^2)
+
+SSE_te
+```
+
+The average sum of squared error on the training set is `r SSE_tr` while the average sum of squared error on the test set is `r SSE_te`.
+
+## (c)
+Q: Use the backward stepwise selection method to select the variables for the regression model on the training set. Which is the first variable dropped from the set?
+
+A:
+```{r}
+library(leaps)
+modelQ4_2sub <- regsubsets(Apps~., data = train,
+                           nvmax = NULL,  # alternatively, 17
+                           method = "backward")
+summary(modelQ4_2sub)
+```
+
+From the results we can see that the first variable to be dropped from the set is `P.Undergrad`.
+
+## (d) 
+Q: Plot the adjusted-$R^{2}$ for all these models. If we choose the model based on the best adjusted-$R^{2}$ value, which variables should be included in the model?
+
+A: The plot are done as follows
+```{r}
+plot(summary(modelQ4_2sub)$adjr2)
+which.max(summary(modelQ4_2sub)$adjr2)
+coef(modelQ4_2sub,12)
+```
+
+The model with the best adjusted-$R^{2}$ is the model with 12 variables which are `PrivateYes, Accept, Enroll, Top10perc, Top25perc, F.Undergrad, Outstate, Room.Board, PhD, S.F.Ratio, Expend, Grad.Rate` along with the `Intercept` term.
+ The variables `P.Undergrad, Books, Terminal, perc.alumni, Personal` are dropped from the model.
+
+\needspace{12\baselineskip}
+## (e)
+Q:  Use the model identified in part (d) to estimate the average sum of squared test error. Does this improve on the model in part (b) in the prediction accuracy?
+
+A: The test MSE is 1070293 which is less than 1075064, so the new model seems to improve  prediction accuracy.
+```{r}
+
+modelQ4_3<-lm(Apps~ Private+Accept+Enroll+Top10perc+Top25perc+ F.Undergrad+ Outstate+ Room.Board+ PhD+ S.F.Ratio+ Expend+ Grad.Rate, data=train)
+
+summary(modelQ4_3)
+predQ4_3 <- predict(modelQ4_3, newdata = test)
+mean((test$Apps - predQ4_3)^2)
+```
+
+
+## (f)
+Q: Fit a LASSO model on the training set. Use the command to define the grid for $\lambda$:
+
+`grid <- 10^seq(10, -2, length = 100)`
+
+Plot the behavior of the coefficients as $\lambda$ changes.
+
+A: First we can initialise the `grid` then run `glmnet` to fit the LASSO model with differing $\lambda$ values:
+```{r 4_f1}
+library(glmnet)
+grid <- 10^seq(10, -2, length = 100)
+Xglm<- model.matrix(Apps~., college)
+yglm<- college$Apps
+modelQ4_4 <- glmnet(Xglm[trainid,], yglm[trainid], lambda = grid)
+```
+
+Then we plot,
+```{r}
+plot(modelQ4_4, xvar = "lambda")
+```
+
+## (g)
+Q: Set the seed to 1 before running the cross-validation with LASSO to choose the best $\lambda$. Use 10-fold cross validation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+A:
+```{r}
+set.seed(1)
+cvmodelQ4_4 <- cv.glmnet(Xglm[trainid,], yglm[trainid],
+                  nfolds = 10, lambda = grid)  # 10-fold cross-validation
+cvmodelQ4_4$lambda.min
+
+coef(modelQ4_4,s=cvmodelQ4_4$lambda.min)
+cvmodelQ4_4$glmnet.fit
+
+predQ4_4<-predict(modelQ4_4,s=cvmodelQ4_4$lambda.min,newx=Xglm[testid,])
+
+mean((predQ4_4 - yglm[testid])^2)  # test error of best model
+```
+
+The number of non-zero coefficients is 17. This means that the model is essentially the same as the model in part (b) which is the full model. The test error of 1075261 is approximately the same.

@@ -1,0 +1,439 @@
+---
+title: "Test your knowledge of R"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document: default
+---
+
+
+*The purpose of this set of exercises is to help build your familiarity with R. The goal here is not to
+make you the most proficient R programmer but rather focus on how to use R to help in analytics.*
+
+
+1. Define:  `x <- c(4,2,6)` and  `y <- c(1,0,-1)`.  Determine the result of the following using R.
+```{r}
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Exercise/Week 1")
+x <- c(4,2,6)
+y <- c(1,0,-1)
+length(x)
+sum(x)
+sum(x^2)
+x+y
+x*y
+x-2
+x^2
+x*y[1:2]
+```
+
+
+2. Decide what the following sequences are and use R to check your answers:
+```{r}
+7:11
+seq(2,9)
+seq(4,10,by=2)
+seq(3,30,length=10)
+seq(6,-4,by=-2)
+```
+
+3. Determine what the result will be of the following R expressions, and then use R to check that
+you are right:
+```{r}
+rep(2,4)
+rep(c(1,5),4)
+rep(c(1,2),c(4,4))
+```
+
+4. Define: `x <- c(5,9,2,3,4,6,7,0,8,12,2,9)`. Decide what each of the following is and use R to check your answers:
+```{r}
+x <- c(5,9,2,3,4,6,7,0,8,12,2,9)
+x[2]
+x[2:4]
+x[c(2,3,6)]
+x[c(1:5,10:12)]
+x[-(10:12)]
+```
+
+5. Create in R the matrices
+ \begin{align*}
+  \texttt{ x} &=
+  \left[ {\begin{array}{cc}
+   3 & 2 \\       -1 & -1 \\      \end{array} } \right], \text{ and, }\quad
+   \texttt{y}=
+  \left[ {\begin{array}{ccc}
+   1 & 4 & 0 \\    0 &   1 & -1 \      \end{array} } \right].
+\end{align*}
+Calculate the following and check your answers in R:
+```{r}
+x<-matrix(c(3,-1,2,-1),nrow=2, ncol=2)
+x
+y<-matrix(c(1,0,4,1,0,-1),nrow=2, ncol=3)
+2*x
+x*x
+x%*%x
+x%*%y
+t(y)
+solve(x)
+```
+With $x$ and $y$ as above, calculate the effect of the following subscript operations and check
+your answers in R.
+```{r}
+x[1,]
+x[2,]
+x[,2]
+y[1,2]
+y[,2:3]
+```
+6. Internet privacy has gained widespread attention in recent years. To measure the degree to which people are concerned about hot-button issues like Internet privacy, social scientists conduct polls in which they interview a large number of people about the topic. In this question, we will analyze data from a July 2013 Pew Internet and American Life Project poll on Internet anonymity and privacy, which involved interviews across the United States. The dataset \texttt{AnonymityPoll.csv} has the following fields (all Internet use-related fields were only collected from interviewees who either use the Internet or have a smartphone):
+
+* Internet.Use: A binary variable indicating if the interviewee uses the Internet, at least occasionally (equals 1 if the interviewee uses the Internet, and equals 0 if the interviewee does not use the Internet).
+* Smartphone: A binary variable indicating if the interviewee has a smartphone (equals 1 if they do have a smartphone, and equals 0 if they don't have a smartphone).
+* Sex: Male or Female.
+* Age: Age in years.
+* State: State of residence of the interviewee.
+* Region: Census region of the interviewee (Midwest, Northeast, South, or West).
+* Conservativeness: Self-described level of conservativeness of interviewee, from 1 (very liberal) to 5 (very conservative).
+* Info.On.Internet: Number of the following items this interviewee believes to be available on the Internet for others to see: (1) Their email address; (2) Their home address; (3) Their home phone number; (4) Their cell phone number; (5) The employer/company they work for; (6) Their political party or political affiliation; (7) Things they've written that have their name on it; (8) A photo of them; (9) A video of them; (10) Which groups or organizations they belong to; and (11) Their birth date.
+* Worry.About.Info: A binary variable indicating if the interviewee worries about how much information is available about them on the Internet (equals 1 if they worry, and equals 0 if they don't worry).
+* Privacy.Importance: A score from 0 (privacy is not too important) to 100 (privacy is very important), which combines the degree to which they find privacy important in the following: (1) The websites they browse; (2) Knowledge of the place they are located when they use the Internet; (3) The content and files they download; (4) The times of day they are online; (5) The applications or programs they use; (6) The searches they perform; (7) The content of their email; (8) The people they exchange email with; and (9) The content of their online chats or hangouts with others.
+* Anonymity.Possible: A binary variable indicating if the interviewee thinks it's possible to use the Internet anonymously, meaning in such a way that online activities can't be traced back to them (equals 1 if he/she believes you can, and equals 0 if he/she believes you can't).
+* Tried.Masking.Identity: A binary variable indicating if the interviewee has ever tried to mask his/her identity when using the Internet (equals 1 if he/she has tried to mask his/her identity, and equals 0 if he/she has not tried to mask his/her identity).
+* Privacy.Laws.Effective: A binary variable indicating if the interviewee believes United States law provides reasonable privacy protection for Internet users (equals 1 if he/she believes it does, and equals 0 if he/she believes it doesn't).
+
+(a) Using `read.csv()`, load the dataset from `AnonymityPoll.csv` into a data frame called poll and summarize it with the `summary()` and `str()` functions.
+  + How many people participated in the poll?
+  + *Ans: 1002 people participated in the polls (1002 observations with 13 variables).*
+```{r}
+poll <- read.csv("AnonymityPoll(2).csv")
+summary(poll)
+str(poll)
+```
+
+ 
+ (b) Look at the breakdown of the number of people with smartphones using the `table()`  command on the `Smartphone` variable.
+ * How many interviewees responded that they use a smartphone? *Ans. 487 people have a smartphone.*
+ * How many interviewees responded that they don't use a smartphone? *Ans. 472 people do not use a smartphone.*
+ * How many interviewees did not respond to the question, resulting in a missing value, or `NA`, in the `summary()` output? *Ans. 43.*
+```{r}
+table(poll$Smartphone)
+summary(poll$Smartphone)
+
+
+nrow(subset(poll, Smartphone==0))
+nrow(subset(poll, Smartphone==1))
+sum(is.na(poll$Smartphone))
+```
+(c) Look at the breakdown of the number of people with smartphones and Internet use using the `table()` command.
+* How many interviewees reported not having used the Internet and not having used a smartphone *Ans. 186.*
+* How many interviewees reported having used the Internet and having used a smartphone? *Ans. 470.*
+* How many interviewees reported having used the Internet but not having used a
+smartphone? *Ans. 285.*
+* How many interviewees reported having used a smartphone but not having used the Internet? *Ans. 17.*
+```{r}
+nrow(subset(poll, Smartphone==0 & Internet.Use==0))
+nrow(subset(poll, Smartphone==1 & Internet.Use==1))
+nrow(subset(poll, Smartphone==0 & Internet.Use==1))
+nrow(subset(poll, Smartphone==1 & Internet.Use==0))
+
+table(poll$Internet.Use, poll$Smartphone)
+```
+(d) Many of the response variables (Info.On.Internet, Worry.About.Info, Privacy.Importance, Anonymity.Possible, and Tried.Masking.Identity) were not collected if an interviewee does not use the Internet or a smartphone, meaning the variables will have missing values for these interviewees.
+* How many interviewees have a missing value for their Internet use? *Ans. 1.*
+* How many interviewees have a missing value for their smartphone use? *Ans. 43.*
+```{r}
+summary(poll)
+# alternatively use
+sum(is.na(poll$Internet.Use))
+sum(is.na(poll$Smartphone))
+```
+ (e) Use the subset function to obtain a data frame called `limited`, which is limited to interviewees who reported Internet use or who reported smartphone use. 
+ * How many interviewees are in the new data frame?  *Ans. 792*
+```{r}
+limited <- subset(poll, poll$Internet.Use == 1|poll$Smartphone == 1)
+str(limited)
+# alternatively use
+nrow(limited)
+```
+(f) For all the remaining questions use the `limited` data frame you have created. 
+* Which variables have missing values in the `limited` data frame?
+    + Smartphone  `20 NA`s  
+    + Age `22 NA`s        
+    + Conservativeness `45 NA`s  
+    + Worry.About.Info `2 NA`s  
+    + Privacy.Importance `5 NA`s  
+    + Anonymity.Possible `39 NA`s  
+    + Tried.Masking.Identity `8 NA`s  
+    + Privacy.Laws.Effective `65 NA`s  
+```{r}
+summary(limited)
+
+```
+(g) What is the average number of pieces of personal information on the Internet, according to the `Info.On.Internet` variable? 
+* *Ans. 3.795*
+```{r}
+mean(limited$Info.On.Internet)
+
+```
+(h) How many interviewees reported a value of 0 for `Info.On.Internet`? *Ans. 105.*
+
+    How many interviewees reported the maximum value of 11 for `Info.On.Internet`? *Ans. 8.*
+```{r}
+sum(limited$Info.On.Internet==0)
+sum(limited$Info.On.Internet==11)
+#or you can also do
+table(limited$Info.On.Internet)
+```
+ (i) What proportion of interviewees who answered the `Worry.About.Info` question worry about how much information is available about them on the Internet? 
+ * *Ans. 0.4886.*
+
+```{r}
+summary(limited$Worry.About.Info)
+#or you can also do
+mean(limited$Worry.About.Info, na.rm = TRUE)
+table(limited$Worry.About.Info)
+
+```
+(j) What proportion of interviewees who answered the `Anonymity.Possible` question think it is possible to be completely anonymous on the Internet?
+* *Ans. 0.3692*
+```{r}
+mean(limited$Anonymity.Possible, na.rm = TRUE)
+```
+(k) Build a histogram of the age of interviewees. What is the best represented age group in the population - people aged around 20, people aged around 40, people aged around 60, people aged around 80?
+* *Ans. From the histogram it seems people aged around 60 are best represented.*
+```{r}
+hist(limited$Age)
+```
+*We may also use* `ggplot` to create the histogram as follows:
+
+```{r}
+library("ggplot2")
+ggplot(limited)+geom_histogram(aes(Age),na.rm=T,binwidth=5,color="black",fill="lightblue")
+```
+
+(l) Both `Age` and `Info.On.Internet` are variables that take on many values, so a good way to observe their relationship is through a graph. However, because `Info.On.Internet` takes on a small number of values, multiple points can be plotted in exactly the same location on this graph using the `plot()` function.
+What is the largest number of interviewees that have exactly the same value in their `Age` variable and the same value in their `Info.On.Internet` variable?
+* *Ans. 6.*
+```{r}
+max(table(limited$Info.On.Internet, limited$Age))
+
+sum(limited$Info.On.Internet == limited$Age)
+```
+(m) To avoid points covering each other up, we can use the `jitter()` function on the values we pass to the plot function. Experimenting with the command `jitter(c(1, 2, 3))`, what appears to be the functionality of the jitter command?
+* *Ans. `jitter` adds some random zero mean noise to the vector.*
+```{r}
+jitter(c(1,2,3))
+```
+(n) Now, plot Age against Info.On.Internet with
+`plot(jitter(limited$Age), jitter(limited$Info.On.Internet))`.
+Comment on the relationship you observe between `Age` and `Info.On.Internet`?
+* *Ans. From the jitter plot, older age is mildly associated with smalller values of the `Info.On.Internet`. However this does not seem to be partcularly strong.*
+```{r}
+plot(jitter(limited$Age), jitter(limited$Info.On.Internet))
+```
+We may use `ggplot` to create a jitter plot.
+```{r}
+ggplot(limited,aes(Age,Info.On.Internet)) +geom_point(position="jitter",na.rm=T)
+```
+(o) Use the `tapply()` function to find the average of the Info.On.Internet value, depending on whether an interviewee is a smartphone user or not?
+* *Ans. Average `Info.On.Internet` for smartphone users is 4.37 and for non-smartphone users it is 2.92.*
+```{r}
+tapply(limited$Info.On.Internet, limited$Smartphone, mean)
+```
+(p) Similarly use `tapply` to break down the Tried.Masking.Identity variable for smartphone
+and non-smartphone users.
+* What proportion of smartphone users who answered the Tried.Masking.Identity question have tried masking their identity when using the Internet? *Ans. 0.1925.*
+* What proportion of non-smartphone users who answered the `Tried.Masking.Identity` question have tried masking their identity when using the Internet? *Ans. 0.1174.*
+```{r}
+tapply(limited$Tried.Masking.Identity, limited$Smartphone, table)
+#or you can also do
+tapply(limited$Tried.Masking.Identity, limited$Smartphone, mean, na.rm = TRUE)
+```
+7. In this question, we will investigate graphically the R internal dataset swiss using a different visualization tool. The data contains the variables:
+* Fertility - common standardized fertility measure
+* Catholic - % of catholics
+* Agriculture - % of men working in agriculture environment
+* Examination - % draftees receiving highest mark on army examination
+* Education - % education beyond primary school for draftees
+* Infant.Mortality - % of live births who live less than 1 year
+of 47 counties in the west of Switzerland dated at 1888. With ?swiss, you can get more information on the meaning of the variables.
+
+(a) Read the help file of `stars()`. Make a star plot of all variables. What can you say about Sierre?
+   * *Ans. The county (canton) of Sierre has a high percentage of Catholics, high fertility rate and a large number of men working in agricluture (rural county). Education and examination percentages are low and so is the Infant mortality rate.*
+```{r}
+data(swiss)
+head(swiss)
+?stars
+?swiss
+stars(swiss, key.loc = c(18,2))
+
+```
+
+(b) We are interested in the relation between Fertility and Education. Therefore we would
+like to make a scatter-plot of Fertility against Education whose points are stars with the
+information of the other variables. In addition we need the argument location.
+```{r}
+stars(as.matrix(swiss[,c(2,3,5,6)]), location = as.matrix(swiss[,c(4,1)]), axes = T)
+stars(as.matrix(swiss[,c(2,3,5,6)]), location = as.matrix(swiss[,c(4,1)]), axes = T, labels = NULL, len = 3, main = "Fertility against Education", xlab = "Education", ylab = "Fertility")
+
+```
+
+(c) Set the argument draw.segments to TRUE to get segments instead of stars. Place a legend
+with key.loc.
+```{r}
+stars(as.matrix(swiss[,c(2,3,5,6)]), location = as.matrix(swiss[,c(4,1)]), axes = T, labels = NULL, len = 3, main = "Fertility against Education", xlab = "Education", ylab = "Fertility", draw.segments = TRUE, key.loc = c(80,35))
+```
+
+(d) What relation do you get from the plots?
+* *Ans. In counties with a high Catholic population and a large number of men working in agriculture, education levels are low and fertility is very high. There is no clear pattern fro infant mortality as such. Areas where there are more Protestants than Catholics, there seems to be higher levels of education*
+
+
+
+8. In this question, we will visualize the attributes of parole violators from a dataset. In many criminal justice systems around the world, inmates deemed not to be a threat to society are released from prison under the parole system prior to completing their sentences. They are still considered to be serving their sentences while on parole and they can be returned to prison if they violate the terms of their parole. Parole boards use data on parole violators to better understand whether to approve or deny an application for parole. The dataset `Parole.csv` has the following fields:
+* Male = 1 if the parolee is male, 0 if female
+* Racewhite = 1 if the parolee is white, 0 otherwise
+* Age = The parolee's age in years at the time of release from prison
+* State = The parolee's state (Kentucky, Louisiana, Virginia, and Other). The first three states were selected due to having a high representation in the dataset.
+* TimeServed = The number of months the parolee served in prison (limited by the inclusion
+criteria to not exceed 6 months).
+* MaxSentence = The maximum sentence length for all charges, in months (limited by the
+inclusion criteria to not exceed 18 months).
+* MultipleOffenses = 1 if the parolee was incarcerated for multiple offenses, 0 otherwise.
+* Crime = The parolee's main crime leading to incarceration (Larceny, Drugs, Driving, and
+Other).
+* Violator = 1 if the parolee violated their parole, and 0 if the parolee completed the parole
+without violation.
+In this question, we will visualize the attributes of parole violators using histograms with the
+ggplot2 package. We'll learn how to use histograms to show counts by one variable, and then
+how to visualize 3 dimensions by creating multiple histograms.
+
+(a) Read the data into a dataframe called `Parole`. 
+
+  * What fraction of parole violators are female?
+  *  *Ans. 14/(14+64)= 0.1794.*
+```{r}
+Parole <- read.csv("Parole(3).csv")
+str(Parole)
+table(Parole$Violator,Parole$Male)
+```
+ (b) In this dataset, which crime is the most common in Kentucky? *Ans. Drugs.*
+```{r}
+table(Parole$State,Parole$Crime)
+```
+(c) In the `ggplot2` package, we need to specify a dataset, aesthetic, and geometry while creating visualizations. To create a histogram, the geometry will be geom histogram. Create a histogram to find out the distribution of the age of parolees, by typing the
+following command in your R console: `ggplot(data = Parole, aes(x = Age)) + geom histogram()`
+```{r}
+library(ggplot2)
+ggplot(data = Parole, aes(x = Age)) + geom_histogram()
+
+```
+
+(d) By default, `geom_histogram` divides the data into 30 bins. Change the width of the bins to 5 years by adding the argument binwidth = 5. Also set the center of one of the bins to 17.5 by adding the argument center = 17.5. Also define the argument `closed = c(``left")` to indicate that left endpoint is included in the bin, but the right endpoint isn't. Which among these age brackets has the most parolees?
+* [20, 25) *(Correct answer)*
+* [25, 30)
+* [30, 35)
+* [35, 40)
+
+```{r}
+ggplot(data = Parole, aes(x = Age)) + geom_histogram(binwidth=5,closed=c("left"),center=17.5)
+
+```
+
+(e) Redo the histogram by adding the argument `color = c(``blue")` to `geom_histogram`.
+What does this argument do?
+* Changes the fill color of the bars
+* Changes the background color of the plot
+* Changes the outline color of the bars *(Correct answer)*
+* Changes the color of the axis labels
+```{r}
+ggplot(data = Parole, aes(x = Age)) + geom_histogram(binwidth=5,closed=c("left"),center=17.5,color=c("blue"))
+
+```
+
+(f) Now suppose we are interested in seeing how the age distribution of male parolees compares to the age distribution of female parolees. One option would be to create a heatmap with Age on one axis and Male (a binary variable in our data set) on the other axis. Another option would be to stick with histograms, but to create a separate histogram for each gender. ggplot has the ability to do this automatically using the facet grid command. To create separate histograms for male and female, type the following command into your R console: `ggplot(data = Parole, aes(x = Age)) + geom_histogram(binwidth=5,closed=c(``left"),center=17.5,color=c(``blue"))+facet grid(Male~.)`
+The histogram for female parolees is on the top and the male parolees is on the bottom.
+What is the age bracket with the most female parolees?
+* [20, 25)
+* [25, 30)
+* [30, 35)
+* [35, 40) *(Correct answer)*
+```{r}
+ggplot(data = Parole, aes(x = Age)) + geom_histogram(binwidth=5,closed=c("left"),center=17.5,color=c("blue"))+facet_grid(Male~.)
+
+```
+
+(g) Now change the facet grid argument to facet `grid(.~Male)`. What does this do?
+* Creates histograms of the Male variable, sorted by the different values of age.
+* Puts the histograms side-by-side instead of on top of each other. *(Correct answer)*
+* Puts the histogram for male parolees on the top.
+* This doesn't change anything - the plot looks exactly the same as it did before.
+```{r}
+ggplot(data = Parole, aes(x = Age)) + geom_histogram(binwidth=5,closed=c("left"),center=17.5,color=c("blue"))+facet_grid(.~Male)
+
+```
+
+(h)  An alternative choice to creating separate histograms is to color the groups differently. To do this, we need to tell ggplot that a property of the data (male or not male) should be translated to an aesthetic property of the histogram. We can do this with the fill parameter as follows:
+`ggplot(data = Parole, aes(x = Age,fill = as.factor(Male))) +
+geom histogram(binwidth=5,closed=``left",center=17.5,color=c(``blue")))`
+Here we need to specify the fill argument as a factor for the function to work. Create the new histogram.
+```{r}
+ggplot(data = Parole, aes(x = Age,fill = as.factor(Male))) + geom_histogram(binwidth=5,closed=c("left"),center=17.5,color=c("blue"))
+
+```
+
+(i) Coloring the groups differently is a good way to see the breakdown of age by sex within the single, aggregated histogram. However, the bars here are stacked, meaning that the height of the bars in each age bin represents the total number of parolees in that age bin, not just the number of parolees in that group. An alternative to a single, stacked histogram is to create two histograms and overlay them on top of each other. This is a simple adjustment to our previous command. We just need to 1) Tell ggplot not to stack the histograms by adding the argument `position="identity"` to the `geom_histogram` function and 2) Make the bars semi-transparent so we can see both colors by adding the
+argument alpha=0.5 to the geom histogram function. The new arguments prevent the
+bars from being stacked and make them semi-transparent. Redo the plot, making both of these changes.
+Which of the following buckets contain no female paroles? Choose all that apply:
+* [15, 20)
+* [20, 25)
+* [25, 30)
+* [30, 35)
+* [35, 40)
+* [40, 45)
+* [45, 50)
+* [50, 55)
+* [55, 60)
+* [60, 65)
+* [65, 70)
+
+   * *Ans. Age brackets with no female parolee: [15, 20), [55,60), [65,70).*
+
+```{r}
+ggplot(data = Parole, aes(x = Age,fill = as.factor(Male))) + geom_histogram(binwidth=5,closed=c("left"),center=17.5,color=c("blue"),position="identity",alpha=0.5)
+
+```
+
+(j) Which of the histograms (faceting or overlaying) do you think better visualizes the data? Why?
+  * *Ans. Overlaying seems to be a better alternative to faceting, since it becomes easier to compare between factors.*
+
+(k) Now let us explore the amount of time served by parolees. Create a basic histogram as in part (c) but with `TimeServed` on the x-axis. Set the binwidth to 1 month, center to 0.5 and closed to "right". What is the most common length of time served according to this histogram?
+
+  * *Ans. In this case, the most common length is 5 to 6 months.*
+```{r}
+ggplot(data = Parole, aes(x = TimeServed)) + geom_histogram(binwidth=1,center=0.5,closed="right")
+
+```
+
+(l) Now, suppose we suspect that it is unlikely that each crime has the same distribution of time served. To visualize this change use facet grid to create a separate histogram of `TimeServed` for each value of the variable `Crime`. Which crime type has no observations where time served is less than one month?
+* Drug
+* Driving *(Correct answer)*
+* Larceny
+* Other
+```{r}
+ggplot(data = Parole, aes(x = TimeServed)) + geom_histogram(binwidth=1,center=0.5,closed="right")+facet_grid(Crime~.)
+
+```
+
+(m) Now instead of faceting the histogram, overlay them. Remember to set the position and alpha parameters so that histograms are not stacked. Also make sure to indicate the fill aesthetic is Crime. In this case, faceting seems like a better alternative. Why?
+* With four different groups, it can be hard to tell them apart when they are overlayed, especially if they have similar values. *(Correct answer)*
+* ggplot doesn't let us overlay plots with more than two groups.
+* Overlaying the plots doesn't allow us to observe which crime type is the most common.
+```{r}
+ggplot(data = Parole, aes(x = TimeServed,fill=Crime)) + geom_histogram(binwidth=1,center=0.5,closed="right",position="identity",alpha=0.5)
+```
+
+
+
+
+
+

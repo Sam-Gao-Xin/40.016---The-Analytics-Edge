@@ -1,0 +1,176 @@
+---
+title: "Moneyball Notebook"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+Let us see what Paul DePodesta did with all the previous years data:
+The dataset consists of 420 observations of 17 variables consisting of:
+Team = Name of team, 
+League = American or National league, 
+Year ( from 1999 to 2012), 
+Games = Number of games played by each team in that year,
+W = Number of wins, 
+RS = Runs scored, 
+RA = Runs against, 
+OBP = On base percentage, 
+SLG = Slugging percentage, 
+BA = Batting Average, 
+OPS = On base plus slugging, 
+OOBP = Opposition on base percentage, 
+OSLG = Opposition slugging percentage, 
+OOPS = Opposition on base plus slugging, 
+Playoffs = 1 if teams makes playoff and 0 otherwise, 
+RankSeason = Rank in season,
+RankPlayoffs = Rank in playoffs.
+
+Let us read the data:
+
+```{r}
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Week 6/Lecture 11 - Moneyball")
+baseball <- read.csv("baseball.csv")
+#str(baseball)
+#summary(baseball)
+```
+Paul DePodesta reduced the planning problem for the upcoming season to a mathematics problem based on the information before 2002. 
+
+Question that motivated him: What would it take to make team A crossing the playoffs?
+
+```{r}
+
+```
+
+How many games are needed to be won to make playoffs?
+
+```{r}
+
+
+```
+
+Paul De Podesta judged that it would take around 95 games to make it to playoffs. If they won 95 games and still could not make it to playoffs, then that was just bad luck. 
+
+So how many runs needed to be scored for and against to win so many games?
+
+Bill James, the founder of sabermetrics had earlier noticed that over time, there was a fairly stable relationship between the total runs difference in a season for a team (for-against) and the number of wins are important factors.
+
+Justify Bill's claim.
+
+```{r}
+baseball2002$RD = baseball2002$RS - baseball2002$RA
+model1 <- lm(W~RD, baseball2002)
+summary(model1)
+ggplot(baseball2002, aes(RD, W)) + geom_point() +geom_smooth(method="lm")
+
+
+```
+
+The result will indicate a linear fit of the form $$W=(80.92+(0.009)D.$$ 
+
+To get to playoffs, how much run differences are needed to ensure 95 wins?
+
+```{r}
+(95-80.92)/0.09
+```
+To have 95 wins, you needed around ___ runs difference. 
+In the book, it is stated that Paul Podesta estimated this number to be around 135 (it would depend on the dataset he used),
+
+How similar are slugging percentage and on-base percentage these two variables?
+```{r}
+
+
+```
+
+Linear regression models: Predicting runs scored from OBP, SLG, BA and OPS separately.
+
+
+```{r}
+m1 <- lm(RS~OBP, baseball2002)
+summary(m1)
+```
+
+```{r}
+m2 <- lm(RS~SLG, baseball2002)
+summary(m2)
+```
+
+```{r}
+m3 <- lm(RS~BA, baseball2002)
+summary(m3)
+```
+
+```{r}
+m4 <- lm(RS~OPS, baseball2002)
+summary(m4)
+```
+
+What happens if we combine `OBP` and `SLG` as regressors/predictors?:
+
+```{r}
+m5 <- lm(RS~OBP+SLG, baseball2002)
+summary(m5)
+```
+Add to that `BA` (A reason behind that*):
+```{r}
+m6 <- lm(RS~OBP+SLG+BA, baseball2002)
+summary(m6)
+```
+Explain the result and which model you may choose.
+
+
+What about for opposition performance? By opposition we mean the total run defended by that particular team in whole season.
+```{r}
+m5_Opp <- lm(RS~OOBP+OSLG, baseball2002)
+summary(m5_Opp)
+```
+
+The results support the claim in Moneyball that OBP and OOBP has a significant correlation with RS and RA. (?)
+
+At the start of 2002, the team OBP = 0.339 and SLG = 0.43 based on player statistics. Predict how many runs will be scored from above information.
+```{r}
+RS_pred = m5$coefficients[1]+m5$coeffcieints[2]*0.339 + m5$coefficients[3]*0.43
+RS_pred
+```
+
+In the book, Paul De Podesta predicted it to be between 800 and 820. 
+
+Similarly using opposition statistics, they estimated OOBP = 0.307 and OOSLG = 0.373.
+How do you predict the number of wins?
+```{r}
+RA_pred = m6$coefficients[1] + m6$coefficients[2]*0.307 + m6$coefficients[2]*0.373
+```
+
+How do you predict RD?
+
+```{r}
+RD_pred<- RS_pred-RA_pred
+RD_pred
+```
+ 
+ So RD is predicted to be 252.19. Using our model, then number of wins can be predicted as:
+ 
+```{r}
+w = 
+``` 
+
+In the book, Paul De Podesta predicted they would win between 93 and 97 games.  They actually won 103.
+
+
+
+
+Suppose you are the General Manager of A, and you are selecting two players for your team. You have a budget of $1,500,000, and you have the choice between the following players:
+
+Player's Name      OBP    SLG    Salary($)
+ Eric Chavez      0.338  0.540   1,400,000
+ Jeremy Giambi    0.391  0.450   1,065,000
+ Frank Menechino  0.369  0.374     295,000
+ Greg Myers       0.313  0.447     800,000
+ Carlos Pena      0.361  0.5       300,000
+ 
+Based on above information whom do you choose..
+
+```{r}
+Mat<- matrix(c(0.338, 0.391,0.369, 0.313,0.361,0.540, 0.450,0.374,0.447, 0.5), nrow=5)
+Mat %*% m5$coefficients[2:3]
+```

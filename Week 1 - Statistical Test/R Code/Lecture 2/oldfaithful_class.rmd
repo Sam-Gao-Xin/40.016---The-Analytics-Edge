@@ -1,0 +1,73 @@
+---
+title: "Old Faithful Notebook"
+output:
+  html_notebook: default
+  html_document: default
+  pdf_document: default
+---
+List datasets available in R
+
+```{r}
+data()
+```
+
+Loads the Old Faithful Geyser dataset
+```{r}
+
+```
+
+
+Display (compactly) the internal structure of the R object - here it is a dataframe with 272 observations and 2 variables
+
+```{r}
+
+```
+
+
+The **Old Faithful Geyser** is a hot spring that occasionally becomes unstable and erupts hot water and steam into the air. The Old Faithful Geyser is at Yellowstone Park, Wyoming.
+
+#### Visualisation
+
+*Scatter plot*
+```{r}
+
+```
+
+*Histogram*
+```{r}
+```
+
+*Time series plot*
+```{r}
+
+```
+
+*Empirical cdf plot for eruptions*
+
+```{r}
+
+```
+
+*Normal quantile plots*
+```{r}
+
+```
+
+
+**Certain obserations from the plots**
+
+
+1. Eruption times and the waiting times between successive eruptions exhibit highly oscillatory behavior, low followed by high and high followed by low.
+2. Eruption times have a bimodal distribution.
+3. Lower eruption times are followed by lower waiting times. Higher eruption times are followed by higher waiting times. This can be used to predict when the next geyser eruption will occur. For example, during a short eruption, less water and heat are used and so both are restored in shorter time. During longer eruptions, more time is needed to rebuild.
+
+**T-test and finding confidence intervals**
+
+1. Performs a one sample t-test to test the hypothesis that the mean of waiting time mu = mu0 and derives the 95% confidence interval for the mean parameter. Note the goal is more to find the confidence interval here.
+2. With 95% confidence, if the eruption time < 3, the average waiting time is between 53.3 and 55.67.
+3. With 95% confidence, if the eruption time >= 3, the average waiting time is between 79.1 and 80.89. 
+```{r}
+
+
+```
+

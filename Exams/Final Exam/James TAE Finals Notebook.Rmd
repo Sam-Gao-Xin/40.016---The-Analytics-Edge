@@ -1,0 +1,429 @@
+---
+title: "James TAE Notebook"
+output: html_notebook
+---
+
+All Relevant Library
+```{r}
+library(caTools) #Split train test data
+library(ROCR) #ROC Curve
+library(rpart) #CART
+library(rattle) #CART Visualisation
+library(RColorBrewer) #CART Visualisation
+library(rpart.plot)  #CART Visualisation
+library(ipred) #Bagging for decision trees only
+library(randomForest)
+library(tm) #Create DTM
+library(SnowballC) #Stemming words
+library(wordcloud)
+library(e1071) #Naive Bayes Classifier
+```
+
+Data Pre-processing
+```{r}
+
+df[row, column]
+
+set.seed(123)                                   # set seed for random sampling
+spl <- sample.split(stevens$rev,SplitRatio=0.7) # We use 70% of the data for training
+train <- subset(stevens,spl==TRUE);             # training dataset
+test <- subset(stevens,spl==FALSE);             # testing dataset
+```
+
+GLM
+```{r}
+model1 <- glm(y_var~x_var_1+x_var_2+x_var_3+x_var_4,data=train,family="binomial")
+
+names(which(coef(summary(model1))[,4] < 0.1)) #print out all predictors significant at the 10% significance level.
+
+summary(model1)
+test <- subset(test,test$issue!="IR")
+p1 <- predict(model1,newdata=test,type="response")
+
+#Calculating accuracy
+table_1_b <- table(test$y_var, p1 >= 0.5)
+sum(diag(table_1_b))/sum(table_1_b)
+
+#Custom accuracy function
+accuracy <- function(predict_object, data, threshold=0.5) {
+  return(sum(diag(table(predict_object >= threshold, data))) / length(data))
+}
+accuracy(stocksPredict, stocksTrain$PositiveDec)
+
+#Calculate baseline accuracy
+#Usually want to choose the sentiment that has the highest count of a particular sentiment, to have the highest possible baseline accuracy.
+nrow(df$y_var == 1)/nrow(df)
+
+```
+
+MSE
+```{r}
+MSE(p1, df_test$y_var)
+```
+
+ROCR
+```{r}
+# Finding the AUC or area under the curve of the test set
+rocr_1_d <- prediction(p1, test$over50k)
+performance(rocr_1_d, "auc")@y.values
+
+#Plotting the ROC Curve
+ROCRperf <- performance(ROCRpred,x.measure="fpr",measure="tpr")
+plot(ROCRperf)
+```
+
+# Week 8  - CART
+
+#8.1 Standard CART Model
+```{r}
+cart1 <- rpart(as.factor(y_var)~x_var_1+x_var_2+x_var_3+x_var_4,data=train,method="class")
+predictcart1 <- predict(cart1,newdata=test,type="class")
+```
+
+```{r}
+#How many splits does the cart model has?
+unname(tail(cart1$cptable[,2], 1))
+
+#What variable does the tree split has on the first level?
+# We can investigate this by looking at the tree visualization
+prp(cart1)
+```
+
+
+
+#8.2 Pruning Decision Tree
+The alpha(complexity parameter) is a regularization variable that helps to reduce the loss function faster to prevent overfitting
+
+We pick the CP value that minimises the cross validation error(xerror) and its standard deviation (xstd)
+
+To train an even deeper model, we can decrease the cp value to very small say 10^-6, we usually do this when the use the printcp() function and realise that the cross validation error is still decreasing.
+
+```{r}
+printcp(cart1)
+plotcp(cart1)
+
+#Getting the cp value that has the lowest cross validation erorr
+opt <- which.min(cart1$cptable[,"xerror"])
+cp <- cart1$cptable[opt, "CP"]
+
+#Prune the tree
+cart2 <- prune(cart1,cp)
+
+#Visualise the tree
+prp(cart2,type=4,extra=4)
+
+#Determining the number of node splits in the output tree
+unname(tail(tree_3_d$cptable[,2], 1))
+```
+
+#8.3 Alternative method: caret package
+```{r}
+library(caret)
+    
+inTrain <- createDataPartition(
+  y = stevens$rev, # output variable
+  p = 0.70, # percentage of data in the training set
+  list = FALSE # whether to return the results of the random sampling
+)
+train <- stevens[inTrain, ];  # training dataset
+test  <- stevens[-inTrain, ]; # testing dataset
+
+train_control <- trainControl(method="cv", number=10)
+FitCART <- train(
+  as.factor(rev)~petit+respon+circuit+lctdir+issue+unconst,
+  data = train,
+  method = "rpart",
+  trControl = train_control
+)
+predictLR <- predict(FitLR, newdata = test)
+confusionMatrix(data = predictLR, as.factor(test$rev))
+```
+
+
+# Week 9 - Bagging(Bootstrapping Aggregation) and Random Forest
+
+Bootstrap resamples with replacement, while cross validation resamples without replacement.
+OOB MSE(Classification error) is to test the error of a bagged model
+
+# 9.1 Building Bagged Trees
+If `coob` is TRUE, the out-of-bag sample is used to estimate the prediction error. Note that the default number of trees is equal to 25.
+```{r}
+mt <- bagging (as.factor(rev)~petit+respon+circuit+lctdir+issue+unconst,data=train, coob=TRUE)
+print(mt)     # short summary
+predict_bag_model <- predict(mt,newdata=test,type="class")
+table(test$rev,predict_bag_model)
+```
+
+# 9.2 Random Forest
+By default, the function `randomForest()` uses $m = p/3$ variables when building a random forest of regression trees, and $m = \sqrt{p}$ variables when building a random forest of classification trees. The default number of trees is 500 (for both classification and regression). $m$ and the number of trees can be changed through the input parameters `mtry` and `ntree`.
+```{r}
+forest_model <- randomForest(as.factor(rev)~petit+respon+circuit+unconst+lctdir+issue,data=train)
+forest_model
+predictforest <- predict(forest_model,newdata=test,type="class")
+table(test$rev,predictforest)
+```
+Random Forests have three hyperparameters:
+- $m$ (`mtry`), the number of (randomly chosen) predictors used to split a node
+- $B$ (`ntree`), the number of trees in the forest
+- `nodesize`, the minimum size of the terminal leaves
+
+# Random Forest Tree Metrics
+```{r}
+#Variable Importance
+importance(forest_model) #A higher Mean Decrease in Gini indicates higher variable importance
+varImpPlot(forest_model)
+```
+
+
+```{r}
+order2 <- sort(varUsed(model2), decreasing=TRUE, index.return=TRUE) #After running predict(), we can see what was actually the most useful variables
+names(test[,head(order2$ix)]) #Print out the names of the variables that are the most useful
+dotchart(order2$x, names(forest_model$forest$xlevel[order2$ix])) #Plot it out
+
+#Impurity - Measures how homogenous each leaf in a tree is.
+varImpPlot(rf_1)
+```
+
+
+```{r}
+# Vary the size of the tree
+B <- seq(5,500,by=5)
+OOB <- vector(); OOB <- c(OOB, 1:length(B)) # Initialize a vector for the OOB value
+for (i in 1:length(B)){
+  forest_temp <- randomForest(as.factor(rev)~petit+respon+circuit+unconst+lctdir+issue,data=train,ntree=B[i])  # train a forest with B[i] trees
+  OOB[i] <- forest_temp$err.rate[B[i],1]  # model performance
+  rm(forest_temp)  # remove the temporary variable
+}
+#Plot the relationship between the size of the tree and OOB Score
+library(ggplot2)
+ggplot(data = data.frame(ntree=B, error=OOB), 
+       mapping = aes(x = ntree, y = error)) + 
+  geom_point(size=3) +
+  coord_cartesian(xlim=c(0,500), ylim=c(0.325,0.450)) +
+  labs(x="Number of Trees", y="OOB error")
+
+#Vary both the size of the tree and the mtry
+B <- seq(5,500,by=5)
+m <- seq(1,6,by=1)
+OOB_matrix <- matrix(0,nrow=length(B),ncol=length(m))
+for (i in 1:length(B)){
+  for (j in 1:length(m)){
+    forest_temp <- randomForest(as.factor(rev)~petit+respon+circuit+unconst+lctdir+issue,data=train,ntree=B[i],mtry=m[j])     # train a forest with B[i] trees
+    OOB_matrix[i,j] <- forest_temp$err.rate[B[i],1]    # model performance
+    rm(forest_temp)  # remove the temporary variable
+    }
+}
+
+#After the nested for loop run, we can find out which mtry and ntree give us the lowest OOB error
+which.min(OOB_matrix[,2])
+best_forest <- randomForest(as.factor(rev)~petit+respon+circuit+unconst+lctdir+issue,data=train,mtry=2,ntree=300)
+predict_bestforest <- predict(best_forest,newdata=test,type="class")
+table(test$rev,predict_bestforest)
+```
+
+
+# Week 10 - Text Analytics
+```{r}
+corpus <- Corpus(VectorSource(df$tweet))
+
+corpus <- tm_map(corpus,removeWords,stopwords("english")) #Remove Stopwwords
+corpus <- tm_map(corpus,removeWords,c("drive","driving","driver","self-driving","car","cars")) #Remove specific key words
+corpus <- tm_map(corpus,removePunctuation) #Remove punctuation
+corpus <- tm_map(corpus,stemDocument)student 
+
+dtm <- DocumentTermMatrix(corpus) #Create DTM
+dtm <- removeSparseTerms(dtm,0.995)
+findFreqTerms(dtm,lowfreq=50) #find term appearing with frequency lower than 50%
+
+df2 <- as.data.frame(as.matrix(dtm))
+colnames(df2) <- make.names(colnames(df2)) #Convert all columns names to start with alphabets
+
+df2$sentiment <- df$sentiment #Add back the sentiment column to the newly created dataset
+
+#Create Word Cloud
+# Get word counts in decreasing order
+word_freqs = sort(colSums(df2), decreasing=TRUE)
+# Create data frame with words and their frequencies
+dm = data.frame(word=names(word_freqs), freq=unname(word_freqs))
+# Plot wordcloud
+wordcloud(dm$word, dm$freq, random.order=FALSE, colors=brewer.pal(8, "Dark2"))
+```
+
+Naive Bayes Model
+```{r}
+model3 <- naiveBayes(as.factor(responsive)~.,data=train)
+predict3 <- predict(model3,newdata=test,type="class")
+table(predict3,test$responsive)
+```
+
+
+# Week 11 - Recommendation Systems
+Partition observations into distinct groups so that the observations within each group are quite similar to each other, while observarions in differnet groups are quite different from each other (Unsupervised Problem)
+Clustering Methods:
+- Hierarchical Clustering
+- K Means Clustering
+
+# 11.1 Data Preparation
+```{r}
+countfields <- count.fields("genres(7).csv", sep="|") # Count the number of fields separated by "|" in each row of genres.csv
+max(countfields) #We can find out the max number of unique genres in one row of the csv file (Fyi this is not the all the unique values in the csv)
+
+genres <- read.csv("genres(7).csv", header=FALSE, sep="|", col.names=c("X1","X2","X3","X4","X5","X6","X7"), stringsAsFactors=TRUE) #We create a dataframe where there are 7 columns, the values are not filled up based on the category yet. The columns are filled up in order of appearance in csv
+levels(genres$X1) #Unique values
+
+source('process_genre_data(7).R')
+M <- process_genre_data(genres)
+head(M)
+Data <- as.data.frame(M)
+
+Data$title <- movies$title #Combine with other dataset that has the movie title
+Data <- Data[,-19] # Drops the 19th column, which corresponds to the "" category
+```
+
+# 11.2 Hierarchical Clustering
+```{r}
+#Before we perform hierarchical clustering, we need to get the calculate the distance between movies using the genres of movies columns(19 columns)
+distances <- dist(Data[,1:19], method="euclidean")
+
+clusterMovies1 <- hclust(distances, method="ward.D2") #Perform hierarchical clustering with Ward's distance method
+plot(clusterMovies1)  #Plot the Dendrogram
+clusterGroups1 <- cutree(clusterMovies1, k=10)
+tapply(Data[,1], clusterGroups1, mean) 
+
+#Creating the clusters  
+Cat1 <- matrix(0,nrow=19,ncol=10) # a matrix "Cat1" where rows denote categories and columns indicate clusters
+for(i in 1:19){
+  Cat1[i,] <- tapply(Data[,i], clusterGroups1, mean)
+}
+rownames(Cat1) <- colnames(Data)[1:19]
+Cat1
+
+#Comparing the movie genres with the recommended genre
+subset(Data, movies$title=="Grand Budapest Hotel, The (2014)")
+clusterGroups1[8418]
+subset(Data, movies$title=="Moneyball (2011)")
+clusterGroups1[7925]
+subset(Data, movies$title=="X-Men: First Class (2011)")
+clusterGroups1[7849]
+```
+
+# 11.3 K-Means Clustering
+centres is the k number of clusters and nstart is the random initial configurations(High is okay)
+```{r}
+clusterMovies2 <- kmeans(Data[,1:19],centers=10,nstart=20) 
+
+#Varying the number of clusters
+set.seed(1)
+fit <- 0
+for(k in 1:15){
+  clusterMovies4 <- kmeans(Data[,1:19], centers=k, nstart=20)
+  fit[k] <- clusterMovies4$tot.withinss
+}
+plot(1:15,fit) #Plot the total within sum of squares against the number of clusters(Lower is better)
+```
+Corresponding Clusters
+```{r}
+Cat2 <- matrix(0,nrow=19,ncol=10)
+for(i in 1:19){
+  Cat2[i,] <- tapply(Data[,i], clusterMovies2$cluster, mean)
+}
+rownames(Cat2) <- colnames(Data)[1:19]
+Cat2
+```
+
+# 11.4 Recommendation Systems Part II
+- Recommendation systems
+- Collaborative Filtering: Recommendations are based on attributes of users
+- Content Filtering: Recommendations are based on attributes of items
+- Baseline Model: Predict the rating based on the item average popularity
+```{r}
+#The data that enters is that for every new movie a userid review there's a new column. Therefore we want to transform the data so that for every unique user id, there's only 1 row and the column are the different movies that he review and the values are the rating he gives
+```
+
+# 11.5 User based collaborative filtering
+- Identifying users whose ratings are similar to those of the active users
+- Using their ratings on other items to predict what the active(current) user will like
+- Measuring similarity between users u and v, using Pearson correlation coefficient
+```{r}
+ratings <- read.csv("ratings(1).csv")
+Data <- matrix(nrow=length(unique(ratings$userId)), ncol=length(unique(ratings$movieId)))
+rownames(Data) <- unique(ratings$userId)
+colnames(Data) <- unique(ratings$movieId)
+for(i in 1:nrow(ratings)){
+  Data[as.character(ratings$userId[i]),as.character(ratings$movieId[i])] <- ratings$rating[i]
+}
+
+hist(as.vector(Data)) #Before normalisation
+Datanorm <- Data - rowMeans(Data,na.rm=TRUE) #Normalising the ratings for each user(row)
+hist(as.vector(Datanorm)) #This will make the histogram more like a normal distribution
+```
+
+```{r}
+#Separating the dataframe into the components
+set.seed(1)       
+spl1 <- sample(1:nrow(Data), 0.98*nrow(Data)) # spl1 has 98% of the rows
+spl1c <- setdiff(1:nrow(Data),spl1)           # spl1c has the remaining ones
+set.seed(2)
+spl2 <- sample(1:ncol(Data), 0.8*ncol(Data))  # spl2 has 80% of the columns
+spl2c <- setdiff(1:ncol(Data),spl2)           # spl2c has the rest
+```
+
+```{r}
+#Models
+Base1    <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+Base2    <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+UserPred <- matrix(nrow=length(spl1c), ncol=length(spl2c))
+
+
+#Baseline model 1
+for(i in 1:length(spl1c)){
+  Base1[i,] <- colMeans(Data[spl1,spl2c], na.rm=TRUE)
+}
+Base1[,1:10] 
+
+
+#Baseline Model 2
+for(j in 1:length(spl2c)){
+  Base2[,j] <- rowMeans(Data[spl1c,spl2], na.rm=TRUE)
+}
+Base2[,1:10] 
+
+
+#User-based Model
+Cor   <- matrix(nrow=length(spl1),ncol=1) # keeps track of the correlation between users
+Order <- matrix(nrow=length(spl1c), ncol=length(spl1)) # sort users in term of decreasing correlations
+for(i in 1:length(spl1c)){
+  for(j in 1:length(spl1)){
+      Cor[j] <- cor(Data[spl1c[i],spl2],Data[spl1[j],spl2],use = "pairwise.complete.obs")
+      }
+  V <- order(Cor, decreasing=TRUE, na.last=NA)
+  Order[i,] <- c(V, rep(NA, times=length(spl1)-length(V)))
+}
+```
+
+```{r}
+#Predictions
+for(i in 1:length(spl1c)){
+  UserPred[i,] <- colMeans(Data[spl1[Order[i,1:250]],spl2c], na.rm=TRUE)
+}
+
+#Compare the model performance
+RMSEBase1    <- sqrt(mean((Data[spl1c,spl2c] - Base1)^2, na.rm=TRUE)) 
+RMSEBase2    <- sqrt(mean((Data[spl1c,spl2c] - Base2)^2, na.rm= TRUE)) 
+RMSEUserPred <- sqrt(mean((Data[spl1c,spl2c] - UserPred)^2,na.rm=TRUE)) 
+```
+
+```{r}
+# Plot the Nu value against the model error
+RMSE <- rep(NA, times=490)
+for(k in 10:499){
+  for(i in 1:length(spl1c)){
+    UserPred[i,] <- colMeans(Data[spl1[Order[i,1:k]],spl2c], na.rm=TRUE)
+    }
+  RMSE[k-10] <- sqrt(mean((Data[spl1c,spl2c] - UserPred)^2,na.rm=TRUE))
+}
+plot(10:499,RMSE)
+
+min(RMSE, na.rm=TRUE)
+```
+

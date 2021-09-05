@@ -1,0 +1,554 @@
+---
+title: "Test your knowledge of Linear Regression and PCA in R"
+output:
+  html_document: default
+  html_notebook: default
+---
+##### Questions on Linear regression
+
+1. This question involves the use of simple linear regression on the Auto dataset. This dataset was taken from the `StatLib` library which is maintained at Carnegie Mellon University. The dataset has the following fields:
+* `mpg`: miles per gallon
+* `cylinders`: number of cylinders
+* `displacement`: engine displacement (cu. inches)
+* `horsepower`: engine horsepower
+* `acceleration`: time to accelerate from 0 to 60 mph (sec.)
+* `year`: model year (modulo 100)
+* `origin`: origin of car (1. American, 2. European, 3. Japanese)
+* `name`: vehicle name
+
+   a. Perform a simple linear regression with `mpg` as the response and `horsepower` as the predictor. Comment on why you need to change the `horsepower` variable before performing the regression.  
+   *Answer.* Note that the `horsepower` variable is read in as a factor variable due to the presence of "?". We need to convert this to numeric as shown in the code, to make it a reasonable model.
+```{r}
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Exercise/Week 2")
+auto<-read.csv("Auto(3).csv")
+str(auto)
+
+auto$horsepower <- as.numeric(as.character(auto$horsepower))
+model1<- lm(mpg~horsepower, data=auto)
+summary(model1)
+```
+   
+   
+   b. Comment on the output by answering the following questions:
+    +   Is there a strong relationship between the predictor and the response?  
+    *Answer.* Yes, there is a strong relationship between the predictor and response. The p-value
+is almost zero, implying we can reject the null hypothesis that the corresponding $\beta_1= 0$.  
+    +   Is the relationship between the predictor and the response positive or negative?    
+    *Answer.* Since $\hat{\beta}=-0.1578$, there is a negative linear relatioship between mpg and horsepower.   
+   c.  What is the predicted mpg associated with a horsepower of 98? What is the associated 99% confidence interval?   
+   *Hint*: You can check the `predict.lm` function on how the confidence interval can be computed for predictions with R.  
+   *Answer.*  The predicted mpg for horsepower of 98 is 24.46708 and the 99% confidence interval is [23.816,25.117].
+```{r}
+predict.lm(model1,newdata=data.frame(horsepower=98),interval=c("confidence"),level=.99)
+```
+   
+   d. Compute the correlation between the response and the predictor variable. How does this compare with the $R^2$ value?  
+   *Answer.* We use `cor(auto$mpg,auto$horsepower, use = "pairwise.complete.obs")` which excludes entries whenever one of the entries is `NA`. Here $R^2=0.6059$.
+```{r}
+cor(auto$mpg,auto$horsepower, use = "pairwise.complete.obs")
+cor(auto$mpg,auto$horsepower, use = "pairwise.complete.obs")^2
+```
+   
+  e. Plot the response and the predictor. Also plot the least squares regression line.
+```{r}
+library(ggplot2)
+ggplot(auto,aes(horsepower,mpg))+geom_point(na.rm=T)+geom_smooth(method="lm",na.rm=T,se=F)
+# Alternative plotting
+#plot(auto$horsepower,auto$mpg)
+#abline(model1)
+```
+  
+  f.  First install the package `ggfortify` which aids plotting linear models with `ggplot2`. Use the following two commands in R to produce diagnostic plots of the linear regression fit:  
+ `> library(ggfortify)`   
+ `> autoplot(your_model_name)`     
+Comment on the Residuals versus Fitted plot and the Normal Q-Q plot and on any problems you might see with the fit.  
+*Answer*. A good linear fit should have the  residuals randomly
+scattered. In this model we see that the residuals decrease, and then increase as the number of fitted residuals increase. The normal QQ plot also shows that the distribution of the residuals is not normal at the extreme tails. This indicates that the data might have evidence of some nonlinearities and outliers.
+
+```{r}
+library(ggfortify)
+autoplot(model1,label.size = 3)
+# Alternative plotting without ggplot
+#layout(matrix(1:4,2,2))
+#plot(model1)
+```
+
+
+
+2.  This question involves the use of multiple linear regression on the `Auto` dataset building on Question 1.  
+a. Produce a scatterplot matrix which includes all the variables in the dataset.  
+*Answer.* An easy way to do this is using `pairs(your_data_name)`. Instead we use the package `psych` and `pairs.panel`.  
+```{r}
+library(psych)
+pairs.panels(auto,ellipses = F, lm =T, breaks=10, hist.col="blue")
+```
+
+
+b. Compute a matrix of correlations between the variables using the function `cor()`. You need to exclude the `name` variable which is qualitative. 
+
+*Answer.* We use `subset(auto,select=-c(name))` to remove `name` from the set. The presence of `NA` in the variable `horsepower` makes all the correlations with horsepower `NA`.
+```{r}
+str(auto)
+auto1<-subset(auto,select=-c(name))
+str(auto1)
+cor(auto1, use = "pairwise.complete.obs")
+```
+
+c. Perform a multiple linear regression with `mpg` as the response and all other variables except
+name as the predictors. Comment on the output by answering the following questions:    
+    *  Is there a strong relationship between the predictors and the response?    
+    *Answer.* The p-value is very close to 0 for the multiple regression model. We can reject the null hypotheses that all the $\beta_i$'s are zero; hence there is a strong relationship between the predictors and the response.  
+    *  Which predictors appear to have a statistically significant relationship to the response?  
+    *Answer.* The variables `displacement`, `weight`, and `origin` are statistically significant at a 1\% level.
+    *  What does the coefficient for the `year` variable suggest?    
+    *Answer.* The coefficient for `year` is positive and the p-value is close to 0. This shows that `year` is positively related to `mpg` where every year adds 0.7508 miles per gallon everything else staying the same.
+```{r}
+model2 <-lm(mpg~., data=auto1)
+summary(model2)
+```
+
+    
+3. This problem focusses on the multicollinearity problem with simulated data.  
+a. Perform the following commands in R:  
+```{r}
+set.seed(1)
+x1 <- runif(100)
+x2 <- 0.5*x1 + rnorm(100)/10
+y <- 2 + 2*x1 + 0.3*x2 + rnorm(100)
+```
+
+The last line corresponds to creating a linear model in which y is a function of `x1` and `x2`. Write out the form of the linear model. What are the regression coefficients?  
+*Answer.*  The form of the linear model is:
+$$ y = \beta_0+ \beta_1 x_1 + \beta_2 x_2 +\epsilon$$
+where the coefficients are $\beta_0=2, \beta_1=2, \beta_2=0.3$.  
+
+b. What is the correlation between `x1` and `x2`? Create a scatterplot displaying the relationship between the variables.
+*Answer.* The correlation is 0.8351. This clearly shows a strong positive correlation between `x1` and `x2` (as also seen in the scatterplot). 
+```{r}
+cor(x1,x2)
+library(ggplot2)
+ggplot(cbind(x1,x2,y),aes(x1,x2))+geom_point()
+```
+
+c. Using the data, fit a least square regression to predict `y` using `x1` and `x2`.  
+    + What are the estimated parameters of $\hat{\beta_0}, \hat{\beta_1}$ and $\hat{\beta_2}$? How do these relate to the true ${\beta_0}, {\beta_1}$ and ${\beta_2}$?  
+    *Answer.* From the fit we see that $\hat{\beta}_0=2.1305, \hat{\beta}_1=1.4396, \hat{\beta}_2=1.0097$. Since the true values are$\beta_0=2, \beta_1=2, \beta_2=0.3$, there is a discrepancy in the values of $\beta_1, \hat{\beta_1}$ and $\beta_2, \hat{\beta_2}$ but less in the case of $\beta_0, \hat{\beta_0}$
+    + Can you reject the null hypothesis $H_0:\beta_1=0$?   
+    + How about the null hypothesis $H_0:\beta_2=0$?  
+     *Answer.* From our regression model, we reject the null hypothesis that $\beta_1=0$ at the 5% level, but we cannot reject the null hypothesis that $\beta_2=0$ at the 5% level.
+Note that the answers here may change depending on the data simulated, but most of the time we can reject one but not the other.    
+```{r}
+model3 <- lm(y~x1+x2)
+summary(model3)
+```
+    
+d. Now fit a least squares regression to predict `y` using only `x1`.
+    + How does the estimated ${\hat{\beta_1}}$ relate to the true ${\beta_1}$?
+    + Can you reject the null hypothesis $H_0:\beta_1=0$?   
+    *Answer.* The estimated $\hat{\beta_1}=1.9759$ which close to $\beta_1=2$, and we can reject the null hypothesis that $H_0:\beta_1=0$ as the p-value is close to zero.
+```{r}
+model4 <- lm(y~x1)
+summary(model4)
+```    
+e. Now fit a least squares regression to predict `y` using only `x2`.
+    + How does the estimated ${\hat{\beta_2}}$ relate to the true ${\beta_2}$?
+    + Can you reject the null hypothesis $H_0:\beta_2=0$?  
+      *Answer.* The estimated $\hat{\beta_2}=2.8996$ which is quite far from $\beta_2=0.3$. We  reject the null hypothesis that $H_0:\beta_2=0$ here as the p-value is close to zero.
+```{r}
+model5 <- lm(y~x2)
+summary(model5)
+```
+f. Provide an explanation on the results in parts (c)-(e).  
+*Answer.* There is multicollinearity in the data between `x1` and `x2`. In doing multiple regression we see this effect where it is difficult to reject $H_0:\beta_j=0$ (for one of the
+coefficients), while we see that with a single regression (with one variable), we can reject
+$H_0:\beta_j=0$. This is caused by multicollinearity.
+
+
+4. This problem involves the `Boston` dataset. This data was part of an important paper in 1978 by Harrison and Rubinfeld titled ???**Hedonic housing prices and the demand for clean air**??? published in the *Journal of Environmental Economics and Management 5(1): 81-102*. The dataset has the following fields:  
+* `crim`: per capita crime rate by town  
+* `zn`: proportion of residential land zoned for lots over 25,000 sq.ft
+* `indus`: proportion of non-retail business acres per town
+* `chas`: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)  
+* `nox`: nitrogen oxides concentration (parts per 10 million)
+* `rm`: average number of rooms per dwelling  
+* `age`: proportion of owner-occupied units built prior to 1940  
+* `dis`: weighted mean of distances to five Boston employment centres  
+* `rad`: index of accessibility to radial highways  
+* `tax`: full-value property-tax rate per \$10,000  
+* `ptratio`: pupil-teacher ratio by town  
+* `black`: $1000(Bk-0.63)^2$ where Bk is the proportion of black residents by town   
+* `lstat`: lower status of the population (percent)  
+* `medv`: median value of owner-occupied homes in \$1000s  
+We will try to predict the median house value using thirteen predictors.
+(a) For each predictor, fit a simple linear regression model using a single variable to predict the response. In which of these models is there a statistically significant relationship between the predictor and the response? Plot the figure of relationship between medv and lstat as an example to validate your finding.  
+*Answer.* We show linear model for `model1` and `model13` below. It should be done for all models to check that the p-values are close to zero for testing $H_0: \beta_j=0$ for $j=1,\ldots,13$.
+```{r}
+boston <- read.csv("Boston(4).csv")
+colnames(boston)
+model1 <- lm(medv~crim, data=boston)
+model2 <- lm(medv~zn, data=boston)
+model3 <- lm(medv~indus, data=boston)
+model4 <- lm(medv~chas, data=boston)
+model5 <- lm(medv~nox, data=boston)
+model6 <- lm(medv~rm, data=boston)
+model7 <- lm(medv~age, data=boston)
+model8 <- lm(medv~dis, data=boston)
+model9 <- lm(medv~rad, data=boston)
+model10 <- lm(medv~tax, data=boston)
+model11 <- lm(medv~ptratio, data=boston)
+model12 <- lm(medv~black, data=boston)
+model13 <- lm(medv~lstat, data=boston)
+
+summary(model1)
+
+# Verify this for all the models by checking that the p-values are close to 0.
+
+summary(model13)
+ggplot(boston,aes(lstat,medv))+geom_point(na.rm=T)+geom_smooth(method="lm",na.rm=T,se=F)
+
+
+```
+
+
+(b) Fit a multiple linear regression models to predict your response using all the predictors. Compare the adjusted $R^2$ from this model with the simple regression model. For which predictors, can we reject the null hypothesis $H_0:\beta_j=0$?  
+*Answer.*  The adjusted $R^2$ is 0.7338 which is larger than the adjusted $R^2$ from any of the
+simple regression models. The variables for which we can reject the $H_0: \beta_j=0$ are `crim,
+zn, chas, nox, rm, dis, rad, tax, ptratio, black, lstat` at the 0.05 significance level.
+
+```{r}
+modelall<- lm(medv~., data=boston)
+summary(modelall)
+```
+
+(c) Create a plot displaying the univariate regression coefficients from (a) on the X-axis and the multiple regression coefficients from (b) on the Y-axis. That is each predictor is displayed as a single point in the plot. Comment on this plot.  
+*Answer.* The figure seems to indicate a fairly positive relationship between the results from the simple and multiple linear regression models. The relationship seems to be linear too.
+```{r}
+Ind <- c(model1$coef[2], model2$coef[2], model3$coef[2], model4$coef[2], model5$coef[2],
+model6$coef[2], model7$coef[2], model8$coef[2], model9$coef[2], model10$coef[2],
+model11$coef[2], model12$coef[2], model13$coef[2])
+Ind
+All <- modelall$coef[2:14]
+All
+ggplot(cbind(Ind,All),aes(Ind,All)) + geom_point()+geom_smooth(method="lm",se=F)+ggtitle("Coefficient relationship") + xlab("Simple linear regression") + ylab("Multiple linear regression")
+```
+
+
+(d) In this question, we will check if there is evidence of non-linear association between the `lstat` predictor variable and the response? To answer the question, fit a model of the form  
+`medv` =  $\beta_0$+ $\beta_0$`lstat` + $\beta_0$`lstat2` + $\epsilon$.  
+You can make use of the `poly()` function in R. Does this help improve the fit? Add higher degree polynomials to  fit the data. What is the degree of the polynomial fit beyond which the terms no longer remain significant?  
+*Answer.* Yes, adding higher-degree terms helps improve the fit. Beyond degree 5, adding additional terms does not seem to improve the model (additional parameters do not remain significant).  
+We plot the data points `(lstat,medv)` along with the linear (blue curve) and polynomial of degree 5 (red curve) fits below.
+```{r}
+summary(model13)
+modelpoly2 <- lm(medv~poly(lstat,2,raw=TRUE), data = boston)
+summary(modelpoly2)
+modelpoly3 <- lm(medv~poly(lstat,3,raw=TRUE), data = boston)
+summary(modelpoly3)
+modelpoly4 <- lm(medv~poly(lstat,4,raw=TRUE), data = boston)
+summary(modelpoly4)
+modelpoly5 <- lm(medv~poly(lstat,5,raw=TRUE), data = boston)
+summary(modelpoly5)
+modelpoly6 <- lm(medv~poly(lstat,6,raw=TRUE), data = boston)
+summary(modelpoly6)
+
+boston$pr1 <- predict(model13,newdata=boston)
+boston$pr5 <- predict(modelpoly5,newdata=boston)
+
+ggplot(boston)+geom_point(aes(lstat,medv))+geom_line(aes(lstat,pr1),color="blue",size=2)+geom_line(aes(lstat,pr5),color="red",linetype="solid",size=2)
+```
+
+
+
+
+
+5. Orley Ashenfelter in his paper "**Predicting the Quality and Price of Bordeaux Wines**" published in *The Economic Journal* showed that the variability in the prices of Bordeaux wines is predicted well by the weather that created the grapes. In this question, you will validate how these results translate to a dataset for wines produced in Australia. The data is provided in the file `winedata.csv`. The dataset contains the following variables:  
+* `vintage`: year the wine was made  
+* `price91`: 1991 auction prices for the wine in dollars  
+* `price92`: 1992 auction prices for the wine in dollars  
+* `temp`: Average temperature during the growing season in degree Celsius  
+* `hrain`: total harvest rain in mm  
+* `wrain`: total winter rain in mm  
+* `tempdiff`: sum of the difference between the maximum and minimum temperatures during the growing season in degree Celsius  
+(a) Define two new variables `age91` and `age92` that captures the age of the wine (in years) at the time of the auctions. For example, a 1961 wine would have an age of 30 at the auction in 1991. What is the average price of wines that were 15 years or older at the time of the 1991 auction?  
+*Answer.* The average price of wine that were 15 years or older at the 1991 auction is
+\$96.44.
+
+```{r}
+wine<-read.csv("winedata(3).csv")
+str(wine)
+wine$age91<-1991-wine$vintage
+wine$age92<-1992-wine$vintage
+mean(subset(wine$price91,wine$age91>=15))
+```
+
+(b) What is the average price of the wines in the 1991 auction that were produced in years when both the harvest rain was below average and the temperature difference was below average?  
+*Answer.* The average price in 1991 when harvest rain and temperature difference were below average is \$72.87.
+
+```{r}
+mean(subset(wine$price91,wine$hrain<mean(wine$hrain)&wine$tempdiff<mean(wine$tempdiff)))
+```
+
+(c) In this question, you will develop a simple linear regression model to fit the log of the price at which the wine was auctioned in 1991 with the age of the wine. To fit the model, use a training set with data for the wines up to (and including) the year 1981. What is the R-squared for this model?  
+*Answer.* $R^2$ for this model is 0.6675.
+
+```{r}
+train<-subset(wine,vintage<=1981)
+model1<-lm(log(price91)~age91,data=train)
+summary(model1)
+```
+
+(d) Find the 99% confidence interval for the estimated coefficients from the regression.  
+*Answer.*   
+ For `intercept` ($\beta_0$): [3:159; 3:98].  
+ For `age`($\beta_1$): [0:022; 0:062].
+
+```{r}
+confint(model1, level = 0.99)
+```
+
+(e) Use the model to predict the log of prices for wines made from 1982 onwards and auctioned in 1991. What is the test R-squared?  
+*Answer.* Test $R^2=0.9213742.$
+
+```{r}
+test<-subset(wine,vintage>=1982)
+predtest<-predict(model1,newdata=test)
+sse<-sum((log(test$price91)-predtest)^2)
+sst<-sum((log(test$price91)-mean(log(train$price91)))^2)
+testR2<- 1-sse/sst
+testR2
+```
+
+(f) Which among the following options describes best the quality of fit of the model for this dataset in comparison with the Bordeaux wine dataset that was analyzed by Orley Ashenfelter?  
+    + The result indicates that the variation of the prices of the wines in this dataset is explained much less by the age of the wine in comparison to Bordeaux wines.
+    + The result indicates that the variation of the prices of the wines in this dataset is explained much more by the age of the wine in comparison to Bordeaux wines.
+    + The age of the wine has no predictive power on the wine prices in both the datasets.    
+*Answer.* In comparison to the results for the Bordeaux wine data, the training (model)
+$R^2$ and test $R^2$ is higher for this new dataset. This seems to indicate that the variation
+in the prices of the wine in this dataset is explained much more by the age of the wines in
+comparison to the Bordeaux dataset.
+
+    
+(g) Construct a multiple regression model to fit the log of the price at which the wine was auctioned in 1991 with all the possible predictors (`age91, temp, hrain, wrain, tempdiff`) in the training dataset. To fit your model, use the data for wines made up to (and including) the year 1981. What is the R-squared for the model?  
+*Answer.* For this model $R^2=0.7938.$
+
+```{r}
+model2<-lm(log(price91)~temp+hrain+wrain+tempdiff+age91,data=train)
+summary(model2)
+```
+
+
+```{r}
+model2a<-lm(log(price91)~age91,data=train)
+summary(model2a)
+```
+
+(h) Is this model preferred to the model with only the age variable as a predictor (use the adjusted R-squared for the model to decide on this)?  
+*Answer.* With only the age variable, adjusted $R^2=0.65$. On the other hand, with all the variables, adjusted $R^2=0.7145$. This seems to indicate that the latter model (with more variables
+included) is preferred.
+
+
+(i) Which among the following best describes the output from the fitted model?  
+    + The result indicates that less the temperature, the better is the price and quality of the wine
+    + The result indicates that greater the temperature difference, the better is the price and quality of wine.
+    + The result indicates that lesser the harvest rain, the better is the price and quality of the wine.
+    + The result indicates that winter rain is a very important variable in the fit of the data.  
+*Answer.*  The result indicates that the lesser the harvest rain, the better the price and the
+quality of the wine will be. This is because the corresponding $\beta=-0.003$ and is significant
+at the 10\% level. All other statements appear to be false.
+
+
+(j) Of the five variables (`age91, temp, hrain, wrain, tempdiff`), drop the two variables that are the least significant from the results in (g). Rerun the linear regression and write down your fitted model.  
+*Answer.* The least significant variables are `wrain` and `tempdiff` with p-values 0.53 and
+0.416 respectively and we create `model3` removing the two.
+
+```{r}
+model3<-lm(log(price91)~temp+hrain+age91,data=train)
+summary(model3)
+```
+
+(k) Is this model preferred to the model with all variables as predictors (use the adjusted R-squared in the training set to decide on this)?  
+*Answer.* In the training set, adjusted $R^2$ for this model is 0.73 while for `model2`, adjsuted $R^2$ is 0.7145. In this case, the new `model3` is preferred to `model2`.
+
+
+(l) Using the variables identified in (j), construct a multiple regression model to fit the log of the price at which the wine was auctioned in 1992 (remember to use `age92` instead of `age91`). To fit your model, use the data for wines made up to (and including) the year 1981. What is the R-squared for the model?  
+*Answer.* $R^2$ for this model is 0.5834.
+
+```{r}
+model4<-lm(log(price92)~temp+hrain+age92,data=train)
+summary(model4)
+```
+
+(m) Suppose in this application, we assume that a variable is statistically significant at the 0.2 level. Would you reject the hypothesis that the coefficient for the variable `hrain` is zero?  
+*Answer.* The p-value for hrain is 0.32. Hence we canot reject the null hypothesis that the coefficient for `hrain` is zero.
+
+
+(n) By separately estimating the equations for the wine prices for each auction, we can better establish the credibility of the explanatory variables because:  
+    + We have more data to fit our models with.
+    + The effect of the weather variables and age of the wine (sign of the estimated coeffi-
+cients) can be checked for consistency across years.
+    + 1991 and 1992 are the markets when the Australian wines were traded heavily.
+Select the best option.  
+*Answer.* The best explanation seems to be that we can check for consistency of the effect of weather variables and age by looking at the sign of the estimated coefficients.
+
+
+(o) The current fit of the linear regression using the weather variables drops all observations where any of the entries are missing. Provide a short explanation on when this might not be a reasonable approach to use.  
+*Answer.* Clearly, dropping missing entries is reliable. However, if there are many missing
+entries, then this implies we can lose a lot of data.
+
+##### Questions on PCA
+
+6. This question involves the use of principal component analysis on the well-known `iris` dataset. The dataset is available in R.
+
+ a. How many observations are there in the dataset? What are the different fields/attributes in the data set?  
+  *Answer.*  There are 150 observations. There are four different attributes (of type numeric): *Sepal length, Sepal width, Petal length* and *Petal width*. The fifth field gives the *Species* which are of three types: *setosa, versicolor, virginica*.
+```{r}
+nrow(iris)
+ncol(iris)
+
+dim(iris)
+colnames(iris)
+
+head(iris)
+```
+ b. Create a new dataset `iris.data` by removing the `Species` column and store its content as `iris.sp`.  
+```{r}
+iris.data<-iris[,-5]
+iris.sp<-iris[,5]
+```
+ c. Compare the various pair of features using a pairwise scatterplot and find  correlation coefficients between the features. Which features seem to be highly correlated?  
+ *Answer.* We use the package `psych` and `pairs.panel` function.  
+ Petal length and width seems highly  positively correlated. Sepal length and width are also highly positively correlated. Sepal length and petal width also seem quite correlated.
+ 
+
+```{r}
+library(psych)
+pairs.panels(iris.data, ellipses = F, lm =T, breaks=10, hist.col="blue")
+```
+ 
+ d. Conduct a principal component analysis on `iris.data` without standardizing the data. You may use `prcomp(..., scale=F)`.  
+    i) How many principal components are required to explain at least 90% of the variability in the data? Plot the cumulative percentage of variance explained by the principal components to answer this question.  
+ *Answer.* Clearly in this case, the first principal component already explains more than 90% of the variability in the data set.  
+```{r}
+pr.out<-prcomp(iris.data,scale=F)
+summary(pr.out)
+pr.out$sdev
+
+pve<-pr.out$sdev^2/sum(pr.out$sdev^2)
+cpve<-cumsum(pve)
+pve
+cpve
+plot(cpve,xlab="Principal components",type="l",ylim=c(0.7,1))
+
+```
+In general it is suggested that data be scaled prior to conducting PCA.    
+    ii) Plot the data along the first two principal components and color the different species separately. Does the first principal component create enough separation among the different species? To plot, you may use the function `fviz_pca_ind` or `fviz_pca_biplot` in `library(factoextra)`. Alternatively, you may use `biplot` or construct a plot using `ggplot2` as well.  
+ *Answer.* The first principal component already seems to create a separation between setosa and the other two categories, although versicolor seems to be quite close to virginica. Moreover, it appears the same proportions of Petal length and Petal width are used in both PC1 and PC2 (the only difference is the magnitude). We can also create 95%  confidence bounds of ellipses around the groups to see how much they are separated.
+ 
+```{r}
+library(factoextra)
+
+fviz_eig(pr.out)
+
+fviz_pca_biplot(pr.out, label = "var", habillage=iris.sp,addEllipses=TRUE, ellipse.level=0.95)
+```
+(e) Do the same exercise as in (d) above, now after standardizing the dataset. Comment on any differences you observe.  
+ *Answer.* From the standardized PCA, we observe that it requires two principal components to explain more than 90% of the variability in the  data (actually then we explain 95%).
+ 
+When data is standardized, one guideline to pick the number of relevant principal components is to pick the ones with eigen-values (the variances of each components) greater than 1 (which means they explain at least one variable). Check that sum of the eigen-values (variances) is the number of variables (which is four here).
+
+From the plots we can see that after standardizing, the second principal component also contributes to explaining variability. Since the Petal lengths were already contributing to bigger numbers, a non-standardized version gave much more importance to this attribute. In the standardized version both Petal length and width tends to get same importance (since they are also quite correlated). Moreover Sepal width gets more prominent weights in principal component 1 as well as in principal component 2. The first two components having variances 1.71 and 0.96, it will natural to choose two principal components here for explaining data variablitiy.
+
+```{r}
+pr.out.sc<-prcomp(iris.data,scale=T)
+
+pr.out.sc
+
+summary(pr.out.sc) 
+pr.out.sc$sdev
+sum((pr.out.sc$sdev)^2)
+plot(pr.out.sc$sdev^2)+abline(h=1,col="red")
+pve.sc<-pr.out.sc$sdev^2/sum(pr.out.sc$sdev^2)
+cpve.sc<-cumsum(pve.sc)
+pve.sc
+cpve.sc
+plot(cpve.sc,xlab="Principal components",type="l",ylim=c(0.4,1))
+# compare with the unscaled case:
+#plot(cpve,xlab="Principal components",type="l",ylim=c(0.4,1))
+```
+
+
+```{r}
+library(factoextra)
+fviz_pca_biplot(pr.out.sc, label = "var", habillage=iris.sp)
+fviz_pca_biplot(pr.out.sc, label = "var", habillage=iris.sp,addEllipses=TRUE, ellipse.level=0.95)
+```
+7. This problem involves the dataset `wine$\_$italy.csv` which was obtained from the University of Irvine Machine Learning Repository. These data are the results of a chemical analysis of wines grown in the same region in Italy but derived from three different \emph{cultivars}.  The analysis determined the quantities of 13 constituents found in each of the three types of wines. The first column identifies the cultivars and the next thirteen are the attributes given by: 
+ * `alcohol`: Alcohol
+ * `malic`: Malic acid
+ * `ash`: Ash
+ * `alkalin`: Alkalinity of ash
+ * `mag`: Magnesium
+ * `phenols`: Total phenols
+ * `flavanoids`: Flavanoids
+ * `nonflavanoids`: Nonflavanoid phenols
+ * `proanth`: Proanthocyanins
+ * `color`: Color Intensity 
+ * `hue`: Hue
+ * `od280`: OD280/ OD315 of diluted wines
+ * `proline`: Proline
+
+a. Check the relationship between the variables by creating a pair-wise scatterplot of the thirteen attributes.  
+ *Answer.*  From the scatterplot we see *flavanoids* and *total phenols* are quite positively correlated. *Falvanoinds* are also quite positively correlated with *proanthocyanins*
+```{r}
+wineitaly<-read.csv("wine_italy.csv",sep=",",head=T)
+str(wineitaly)
+wine.it<-wineitaly[,-1]
+wine.cl<-wineitaly[,1]
+
+pairs.panels(wine.it, ellipses = F, lm =T, breaks=10, hist.col="blue")
+```
+b. Conduct a principal component analysis on the standardized data. What proportion of the total variability  in the data is explained by the first two components?  
+
+ *Answer.*  The first two components explain 55% of the total variation.
+ 
+```{r}
+pr.wine<-prcomp(wine.it,scale=T)
+
+summary(pr.wine) 
+pr.wine$sdev
+```
+ 
+c. Plot the data along the first two principal components and color the different cultivars separately. Also plot the loadings of the different components to show the importance of the different attributes on the first two principal components?  
+ *Answer.* 
+```{r}
+#library(factoextra)
+fviz_pca_biplot(pr.wine, label = "var", habillage=wine.cl)
+fviz_pca_biplot(pr.wine, label = "var", habillage=wine.cl,addEllipses=TRUE, ellipse.level=0.95)
+```
+    i) Which two key attributes differentiate Cultivar 2 from the other two cultivars?  
+ *Answer.*  From the principal component loadings for each attribute, we can see that *Cultivar 2* (green triangles) has lighter color intensity and lower alcohol content (plotted opposite to the directions of these attributes in the PC1-PC2 axes). They also have a higher OD280/OD315 ratio and stronger hue than the other cultivars (but these weights are a little less that the first two).
+ 
+```{r}
+head(pr.wine)
+pr.wine$rotation[order(pr.wine$rotation[,1],decreasing=T),1:2] ## order according to PC1
+pr.wine$rotation[order(pr.wine$rotation[,2],decreasing=T),1:2] ## order according to PC2
+``` 
+    ii) Which two key attributes differentiate Cultivar 3 from the other two cultivars?  
+ *Answer.*  Similarly we can see that *Cultivar 3* (blue squares) has higher content of malic acid and non-flavanoids, as well as higher alkalinity especially with respect to cultivar 1.
+ 
+ 
+e. Use an appropriate plot to find the number of attributes required to explain at least 80% of the total variation in the data. How many principal components would you pick to explain the variability in the data reasonably?
+*Answer.*  We use a plot of the cumulative percentage of variance explained first. From the plot (the red vertical line is at the level 0.8 and the blue horizontal line at index 5) and the calculations, we can see that the first five principal components are necessary to explain at least 80% of the variability. 
+We also make a scree plot and observe that only four of the variances are greater than 1, hence we can decide on choosing 4 principal components to reasonable explain the variablitly in the data.
+
+```{r}
+pve.w<- pr.wine$sdev^2/sum(pr.wine$sdev^2)
+pve.w
+cpve.w<- cumsum(pve.w)
+cpve.w
+
+plot(cpve.w,xlab="Principal components",type="l",ylim=c(0,1))+abline(h=0.8,col="red")+abline(v=5,col="blue")
+plot(pr.wine,type="l",ylim=c(0,5),main="Scree plot")+abline(h=1,col="red") 
+```
+
+##### End of Exercise

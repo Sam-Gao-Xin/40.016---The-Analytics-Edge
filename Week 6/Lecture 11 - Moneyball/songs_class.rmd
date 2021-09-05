@@ -1,0 +1,191 @@
+---
+title: "Hit Song Prediction Notebook"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+Let's try to predct Hit Songs!
+The dataset consists of 7574 observations of 39 variables. 
+
+Here's a detailed description of the variables:
+
+year = the year the song was released
+songtitle = the title of the song
+artistname = the name of the artist of the song
+songID and artistID = identifying variables for the song and artist
+timesignature and timesignature_confidence = a variable estimating the time signature of the song, and the confidence in the estimate
+loudness = a continuous variable indicating the average amplitude of the audio in decibels
+tempo and tempo_confidence = a variable indicating the estimated beats per minute of the song, and the confidence in the estimate
+key and key_confidence = a variable with twelve levels indicating the estimated key of the song (C, C#, . . ., B), and the confidence in the estimate
+energy = a variable that represents the overall acoustic energy of the song, using a mix of features such as loudness
+pitch = a continuous variable that indicates the pitch of the song
+timbre_0_min, timbre_0_max, timbre_1_min, timbre_1_max, . . . , timbre_11_min, and timbre_11_max = variables that indicate the minimum/maximum values over all segments for each of the twelve values in the timbre vector (resulting in 24 continuous variables)
+Top10 = a binary variable indicating whether or not the song made it to the Top 10 of the Billboard Hot 100 Chart (1 if it was in the top 10, and 0 if it was not)
+
+Let's load the data:
+```{r}
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Week 6/Lecture 11 - Moneyball")
+Songs <- read.csv("songs(7).csv")
+str(Songs)
+head(Songs)
+```
+
+## (a) Basic Data understanding
+
+How many songs were by Michael Jackson? (Use the artistname column)
+```{r}
+table(Songs$artistname == "Micheal Jackson")
+```
+
+How many songs were Hit Songs? How many songs were not Hit Songs?
+```{r}
+
+```
+
+## (b) Train-Test splitting
+
+We wish to predict whether or not a song will make it to the Top 10. To do this, first split the data into a training set "SongsTrain" consisting of all the observations up to and including 2009 song releases, and a testing set "SongsTest", consisting of the 2010 song releases.
+
+How many observations (songs) are in the training set?
+```{r}
+SongsTrain <- Songs[Songs$year <= 2009,]
+SongsTest <- Songs[Songs$year == 2010,]
+```
+
+## (c) Building a model
+
+In this problem, our outcome variable is "Top10" - we are trying to predict whether or not a song will make it to the Top 10 of the Billboard Hot 100 Chart. Since the outcome variable is binary, we will build a logistic regression model.
+
+We will only use the variables in our dataset that describe the numerical attributes of the song in our logistic regression model. So we won't use the variables "year", "songtitle", "artistname", "songID", or "artistID".
+
+We first remove these variables from the SongsTrain and SongsTest dataset.
+
+```{r}
+nonvars = c("year", "songtitle", "artistname", "songID", "artistID")
+
+#To remove these variables from your training and testing sets, use the neat command
+SongsTrain = SongsTrain[ , !(names(SongsTrain) %in% nonvars) ]
+SongsTest = SongsTest[ , !(names(SongsTest) %in% nonvars) ]
+```
+
+
+Let's try to build a logistic regression model to predict Top10 using all the remaining columns in the training data. 
+
+Looking at the summary of your model, excluding the intercept, how many variables are significant at the 5% significance level?
+```{r}
+SongsLogs1 = glm(Top10~ . , data=SongsTrain, family=binomial)
+summary(SongLogs1)
+
+sum(summary(SongsLogs1)$coefficients[2:34, 4] < 0.05)
+
+```
+
+Let's now think about the variables in our dataset related to the confidence of the time signature, key, and tempo (timesignature_confidence, key_confidence, and tempo_confidence). Our model seems to indicate that these confidence variables are significant (rather than the variables timesignature, key, and tempo themselves). What does the model suggest? Songs that have low confidence for time signature, key and tempo are generally more complex, what does this suggest about mainstream listeners?
+
+A: The higher our confidence about time signature, key and tempo, the more likely the song is to be in the Top 10.
+Mainstream listeners tend to prefer less complex songs.
+
+
+## (d) Predictions and Confusion Matrix
+
+Make predictions on the test set using our model. What is the accuracy of our model on the test set, using a threshold of 0.45? (Compute the accuracy as a number between 0 and 1.)
+
+```{r}
+predict_test <- predict(SongsLogs1, newdata=SongsTest, type="response")
+summary(predict_test)
+
+CM <- table(predict_test>0.45, SongsTest$Top10)
+CM
+
+(309+15)/(309+44+5+15)
+```
+
+What is the accuracy of the baseline model on the test set? (Predicting everything to be the most frequent outcome)
+```{r}
+
+```
+
+What is the True Positive Rate of our model on the test set, using a threshold of 0.45?
+```{r}
+
+```
+
+What is the False Positive Rate of our model on the test set, using a threshold of 0.45?
+```{r}
+
+```
+
+What is the Specificity of our model?
+
+```{r}
+
+```
+
+
+## (e) Datapoint-level analysis
+
+In Songs (before we removed the names), there is a song "Fix You" by Coldplay. Using the model, find the probability of it being a Top 10 hit.
+```{r}
+fixyou = Songs[Songs$songtitle == "Fix You",]
+predict_fy <- predict(SongsLogs1, newdata = fixyou, type="response")
+predict_fy
+```
+
+Solve for how many units of increase in loudness we need to add to the song, to get the probability to 0.20 using this model.
+```{r}
+prob = unname(predict_fy)
+prob
+
+logodds = log(prob/(1-prob))
+logodds
+
+logodds2 = log(0.2/(1-0.2))
+logodds2
+
+(logodds2 - logodds)/0.2999
+```
+
+
+Suppose we miraculously found ways to change the song such that we can change values of any columns without affecting the other columns. Using this technique, we want to increase the chance that "Fix You" is a hit song. We decreased the energy by 0.2 units and increased the loudness by 2 units. What is the new probability of "Fix You" being a Top Hit?
+```{r}
+fixyou_plus = fixyou
+fixyou_plus$loudness = fixyou$loudness + 2
+fixyou_plus$energy = fixyou$energy - 0.2
+
+predict_fyplus <- predict(SongLogs1, newdata = fixyou_plus, type="response")
+predict_fyplus
+```
+
+## (f) Building a new model
+
+Suppose we make a model only using the significant variables (pvalue < 0.05) in the original dataset. What is the new test accuracy (using the same threshold of 0.45)?
+(Harder question)
+```{r}
+siglist = summary(SongsLogs1)$coefficients[summary(SongLogs1)$coefficients[,4]<0.05, 4]
+siglist
+
+sigpred = names(siglist[2:length(siglist)])
+sigformula = as.formula(paste0("Top10 ~ ", paste0(sigpred, collapse = " + ")))
+sigformula
+
+SongLogs2 = glm(sigformula, data=SongsTrain, family=binomial)
+```
+
+## (g) AUC
+
+THis new model has AIC of 4820.1, better than the original model's 4827.2.
+The test accuracy has also increased slightly.
+Let's plot and compare the ROC curves. What is the AUC for each model?
+
+```{r}
+library(ROCR)
+
+```
+```{r}
+
+```
+
+The new model has slightly better AUC scores as well.

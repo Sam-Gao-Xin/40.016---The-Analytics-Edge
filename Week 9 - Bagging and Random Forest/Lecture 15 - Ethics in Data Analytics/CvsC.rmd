@@ -1,0 +1,131 @@
+---
+title: 'Correlation vs causation: storks delivering babies'
+author: "Bikramjit Das"
+date: "Term 6, 2020"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+Correlation vs Causation: storks data
+
+
+Do storks actually deliver babies? Let us look at a data set from 17 European countries (from 1980 to 1990). We plot the stork pairs vs. number of births (in 1000s per year).
+```{r}
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Week 9/Lecture 15 - Ethics in Data Analytics")
+storks<-read.csv("storks.csv")
+View(storks)
+str(storks)
+library(ggplot2)
+
+p1<- ggplot(storks, aes(Storks,Birth))+ geom_point(na.rm=T) +geom_smooth(method="lm",se=F,na.rm=T,fullrange=T)
+p1
+model1<-lm(data=storks, Birth~Storks)
+
+summary(model1)
+```
+
+Let us investigate a bit more. Is their a relationship with the area of the country?
+
+```{r}
+p2<- ggplot(storks, aes(Area,Birth))+ geom_point(na.rm=T) +geom_smooth(method="lm",se=F,na.rm=T,fullrange=T)
+p2
+model2<-lm(data=storks, Birth~Area)
+
+summary(model2)
+
+
+p3<- ggplot(storks, aes(Area,Storks))+ geom_point(na.rm=T)+geom_smooth(method="lm",se=F,na.rm=T,fullrange=T)
+p3
+```
+
+So what is the overall association?
+
+```{r}
+library(psych)
+pairs.panels(storks[,c(2,3,5)],lm=T,ellipses=F)
+help(pairs.panels)
+```
+
+
+
+
+
+**Statistical traps: generate employment history**
+
+
+```{r}
+
+### Generate employee work years
+library(ggalt)
+End<-as.numeric()
+set.seed(1)
+for (i in 1:5)
+End<-c(End,1980+5*i+runif(10,min=1,max=35))
+```
+
+Observe the available data until now.
+
+
+```{r}
+
+End2020<-pmin(End,rep(2020,50))
+
+df2020<-data.frame(id=1:50,St=c(rep(c(1985,1990,1995,2000,2005),each=10)),End2020)
+
+ggplot(df2020, aes(y=id, x=St, xend=End2020)) +
+  geom_dumbbell(size=3, color="#e3e2e1",
+                colour_x = "#5b8124", colour_xend = "#bad744",
+                dot_guide=TRUE, dot_guide_size=0.25) +
+  labs(x=NULL, y=NULL, title="Employment at ABC (until 2020)") +
+  theme_minimal() +
+  theme(panel.grid.major.x=element_line(size=0.05)) 
+ggsave("plottrunc2020.png")
+
+
+tapply(df2020$End2020-df2020$St,df2020$St,mean)
+tapply(df2020$End2020-df2020$St,df2020$St,sd)
+```
+
+May be not the right thing to look at. So we remove the employees who are still working in the firm.
+
+
+```{r}
+### Look at censored data
+
+
+dfcen<-df2020[df2020$End2020<2020,]
+ggplot(dfcen, aes(y=id, x=St, xend=End2020)) +
+  geom_dumbbell(size=3, color="#e3e2e1",
+                colour_x = "#5b8124", colour_xend = "#bad744",
+                dot_guide=TRUE, dot_guide_size=0.25) +
+  labs(x=NULL, y=NULL, title="Employment at ABC (employees who left)") +  
+  theme_minimal() +
+  theme(panel.grid.major.x=element_line(size=0.05))
+ggsave("plotcensor2020.png")
+```
+
+
+Now look at the data that was generated. All employees were simulated to have worked a random number of years which was uniform between 1 and 35.
+
+```{r}
+### Look at original data
+
+
+df<-data.frame(id=1:50,St=c(rep(c(1985,1990,1995,2000,2005),each=10)),End)
+
+ggplot(df, aes(y=id, x=St, xend=End)) +
+  geom_dumbbell(size=3, color="#e3e2e1",
+                colour_x = "#5b8124", colour_xend = "#bad744",
+                dot_guide=TRUE, dot_guide_size=0.25) +
+  labs(x=NULL, y=NULL, title="Employment at ABC (projected)") +
+  theme_minimal() +
+  theme(panel.grid.major.x=element_line(size=0.05)) 
+
+ggsave("plotall.png")
+
+
+tapply(df$End-df$St,df$St,mean)
+tapply(df$End-df$St,df$St,sd)
+```
+

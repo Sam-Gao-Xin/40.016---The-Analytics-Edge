@@ -1,0 +1,86 @@
+---
+title: 'Basic R Notebook: Lecture 1'
+author: 'Bikram'
+output:
+  html_document: default
+  pdf_document: default
+  html_notebook: default
+---
+
+Preliminaries
+
+Returns the current working directory
+
+
+Provides help on a specific function
+
+
+Sets the current working directory
+
+
+Lists the files in a directory
+
+
+Lists objects stored in the R workspace
+
+
+Assigns a number to a variable
+
+
+(Alternative to) assigning a number to a variable. Mostly '<-' is preferred for assignment.
+
+
+Common functions - exponential, inverse, power, addition
+
+
+Remove a variable from the workspace
+
+
+Numbers and vectors
+
+
+Concatenates (combines) numbers to form a vector
+
+
+Accessing specific elements of the vector
+
+
+Applying operations to the vector - term by term inverse, concatenate vectors, exponentiation
+
+
+You can overload the sum operator by recycling the shorter vector - mathematically adding vectors of different sizes are not permitted 
+
+
+Finding the maximum and minimum elements and identifying the location (index) of the first max and all max
+
+
+Other operations - sum, product, mean, variance, standard deviation
+
+
+For a vector, it provides a six number summary including min, max, mean, 1st quartile, median and 3rd quartile. This can be used with other objects too.
+
+
+Maximum entry in a concatenated vector
+
+
+Parallel maximum returns a vector of length equal to the longest argument that contains in each element, the largest element in that position of any of the vector
+
+
+Remove all variables from the workspace
+
+
+
+Differences in the assignment using <- and ==. Try exp(a=1:5) and exp(a<-1:5)
+
+
+Generating vectors using a variety of commands
+
+
+
+Returns logical vector based on the check
+
+
+Dealing with missing entries 
+
+
+END OF LECTURE 1.

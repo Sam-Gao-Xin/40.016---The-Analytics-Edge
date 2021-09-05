@@ -1,0 +1,176 @@
+---
+title: 'Basic R Notebook: Lecture 1'
+author: 'Bikram'
+output:
+  html_document: default
+  pdf_document: default
+  html_notebook: default
+---
+
+Preliminaries  
+Use `ctrl+alt+i` to create the R environment (thanks, Soo Han Soon)
+
+
+Returns the current working directory
+```{r}
+getwd()
+```
+
+Provides help on a specific function
+```{r}
+help(getwd)
+?getwd
+```
+
+Sets the current working directory
+```{r}
+setwd("/Users/Bikram/Google Drive/AnalyticsEdge/Week 1/R code")
+```
+
+
+Lists the files in a directory
+
+```{r}
+dir("/Users/Bikram/Google Drive/AnalyticsEdge/Datasets/")
+```
+
+Lists objects stored in the R workspace
+```{r}
+ls()
+```
+
+
+Assigns a number to a variable
+
+```{r}
+x<-40
+x
+```
+
+(Alternative to) assigning a number to a variable. Mostly '<-' is preferred for assignment.
+```{r}
+x=40
+x
+```
+
+Common functions - exponential, inverse, power, addition
+```{r}
+exp(x)
+1/x
+x^3
+y<-x+6
+y
+```
+
+Remove a variable from the workspace
+
+```{r}
+ls()
+rm(y)
+ls()
+```
+Numbers and vectors
+
+Concatenates (combines) numbers to form a vector
+
+```{r}
+x<-c(1,-2,3,5,pi)
+x
+```
+Accessing specific elements of the vector
+
+```{r}
+x[3]
+```
+Applying operations to the vector - term by term inverse, concatenate vectors, exponentiation
+
+```{r}
+1/x
+exp(x)
+y<-c(x,0,x)
+y
+```
+You can overload the sum operator by recycling the shorter vector - mathematically adding vectors of different sizes are not permitted 
+
+```{r}
+x
+y
+x+y
+```
+Finding the maximum and minimum elements and identifying the location (index) of the first max and all max
+
+```{r}
+max(x)
+min(y)
+which.max(x)
+y
+which(y==min(y))
+```
+Other operations - sum, product, mean, variance, standard deviation
+```{r}
+sum(x)
+prod(x)
+mean(x)
+sd(x)
+summary(x)
+```
+
+For a vector, it provides a six number summary including min, max, mean, 1st quartile, median and 3rd quartile. This can be used with other objects too.
+
+
+Maximum entry in a concatenated vector
+
+```{r}
+max(x,y)
+```
+Parallel maximum returns a vector of length equal to the longest argument that contains in each element, the largest element in that position of any of the vector
+```{r}
+?pmax
+x
+y
+pmax(x,y)
+```
+
+Remove all variables from the workspace
+```{r}
+ls()
+rm(list=ls())
+ls()
+
+```
+
+
+Differences in the assignment using <- and ==. Try exp(a=1:5) and exp(a<-1:5)
+
+```{r}
+exp(a<-1:5)
+#exp(a=1:5)
+```
+Generating vectors using a variety of commands
+
+```{r}
+x<--3:8
+x
+seq(-3,8,0.2)
+rep(x,times=3)
+rep(x,each=3)
+```
+
+Returns logical vector based on the check
+```{r}
+x
+x>1
+
+```
+
+Dealing with missing entries 
+```{r}
+is.na(x)
+?is.na
+y<-c(x,NA)
+y
+is.na(y)
+
+```
+
+END OF LECTURE 1.

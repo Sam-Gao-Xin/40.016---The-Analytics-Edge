@@ -1,0 +1,319 @@
+---
+title: "Text Analytics (Part 2)"
+author: "Stefano Galelli"
+date: "Term 6, 2020"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+First, we prepare the working environment.
+```{r}
+rm(list=ls()) # Clear the environment
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Week 10 - Text Analytics and Naive Bayes Classifier/Lecture 17 - Text Analytics(Part II)")  # Setup the working directory
+```
+
+
+# Data Preparation
+
+Load the Enron data. With the option `stringsAsFactors=FALSE` we make sure that character vectors are not converted into factors.
+
+```{r}
+energy <- read.csv("energy_bid(1).csv",stringsAsFactors=FALSE)
+str(energy)
+# head(energy)
+```
+
+The dataframe contains a total of 851 emails, where `energy$email` is the email content, and `energy$responsive` is 1 if the email was responsive (to a query about energy bids and schedules) and 0 otherwise.
+
+Let's take a look to a few emails:
+
+```{r}
+energy$email[1] # list out the entire email (but this is hard to read). 
+```
+
+Let's try with the function `strwrap`, which wraps character strings to format paragraphs easy to read.
+
+```{r}
+# ?strwrap
+strwrap(energy$email[1])
+energy$responsive[1] # This takes value 0 since the email is not responsive to energy bid and schedule.
+```
+
+```{r}
+strwrap(energy$email[4])
+energy$responsive[4] # The fourth email deals with the search on the energy bids and schedules. hence, the responsive variable takes a value of 1.
+```
+
+How many emails are responsive?
+
+```{r}
+table(energy$responsive)
+```
+
+That's about ```r 137/(137+714)*100```%.
+
+
+# Pre-processing
+
+Load the `tm` and `SnowballC` packages:
+
+```{r, message=FALSE}
+if(!require(tm)){
+  install.packages("tm")
+  library(tm)
+}
+if(!require(SnowballC)){
+  install.packages("SnowballC")
+  library(SnowballC)
+}
+```
+
+Create a corpus (a collection of emails, in our case):
+
+```{r}
+corpus <- Corpus(VectorSource(energy$email))
+```
+
+Let's check one of the emails:
+
+```{r}
+as.character(corpus[[4]]) # We check the fourth entry
+strwrap(as.character(corpus[[4]])) # Read the email in the corpus
+```
+
+Make lower case, remove english stopwords, remove punctuation and numbers, and stem.
+
+```{r, message=FALSE}
+corpus <- tm_map(corpus,content_transformer(tolower))
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeNumbers)
+corpus <- tm_map(corpus,stemDocument)
+```
+
+Let's check the fourth email: note that it is much harder to read ... but it is more suitable to apply analytics!
+
+```{r}
+strwrap(energy$email[4]) 
+strwrap(as.character(corpus[[4]]))
+```
+
+We create a Document-Term matrix from the corpus: we will have 851 documents (rows) and (about) 13798 terms (columns). 
+
+```{r}
+dtm <- DocumentTermMatrix(corpus)
+dtm
+```
+
+The matrix is very sparse (99%)!
+
+Let's inspect the fourth email to see which are the non-zero terms:
+
+```{r}
+inspect(dtm[4,])
+```
+
+Finally, we remove all terms that do not occur in at least 3% of documents. 
+
+```{r}
+dtm <- removeSparseTerms(dtm,0.97)
+dtm
+```
+
+We now have 612 terms left.
+
+
+# Preparing the DTM for model learning
+
+We transform the term-document matrix into a matrix and, then, into a dataframe:
+
+```{r}
+energysparse <- as.data.frame(as.matrix(dtm))
+```
+
+This helps ensure that columns have valid names:
+
+```{r}
+colnames(energysparse) <- make.names(colnames(energysparse))
+str(energysparse)
+```
+
+Basic visualization with wordcloud
+
+```{r, message=FALSE}
+# Load the wordcloud package 
+if(!require(wordcloud)){
+  install.packages("wordcloud")
+  library(wordcloud)
+}
+# Get word counts in decreasing order
+word_freqs = sort(colSums(energysparse), decreasing=TRUE) 
+# Create data frame with words and their frequencies
+dm = data.frame(word=names(word_freqs), freq=unname(word_freqs))
+# Plot wordcloud (we limit the plot to 100 words)
+wordcloud(dm$word, dm$freq, random.order=FALSE, colors=brewer.pal(8, "Dark2"), max.words=100)
+```
+
+Last step, we add the output variable (response) to the `energysparse` dataframe:
+
+```{r}
+energysparse$responsive <- energy$responsive
+# str(energysparse)
+```
+
+
+# Train and test a classifier
+
+Let's prepare the data for our modelling exercise:
+
+```{r, message=FALSE}
+# Load the caTools package and set the seed
+if(!require(caTools)){
+  install.packages("caTools")
+  library(caTools)
+}
+set.seed(123)
+# Create train and test sets (with balanced response)
+spl   <- sample.split(energysparse$responsive,SplitRatio=0.7)
+train <- subset(energysparse,spl==TRUE)
+test  <- subset(energysparse,spl==FALSE)
+```
+
+## CART
+
+Train: 
+
+```{r}
+library(rpart)
+model1 <- rpart(as.factor(responsive)~.,data=train)
+```
+
+Visualize:
+
+```{r}
+library(rpart.plot)
+prp(model1,type=4,extra=2)
+```
+
+Prediction:
+
+```{r}
+predict1 <- predict(model1,newdata=test,type="class")
+table(predict1,test$responsive)
+```
+
+The model accuracy is `r (205+12)/255`.
+
+Should we prune the tree? To answer this question, we look at the `cp` table:
+
+```{r}
+printcp(model1)
+```
+
+It looks like the cross-validation error (`xerror`) has not reached a local minimum yet. This is a situation similar to the one we experienced in the previous session. One option is to then grow a deeper tree and look for the minimum value of `xerror`, on the basis of which we prune the tree.
+
+
+## Random Forests
+
+Train:
+
+```{r, message=FALSE}
+library(randomForest)
+model2 <- randomForest(as.factor(responsive)~.,data=train)
+model2
+# summary(model2)
+```
+
+Variable importance:
+
+```{r}
+varImpPlot(model2)
+```
+
+Prediction
+
+```{r}
+predict2 <- predict(model2,newdata=test,type="class")
+table(predict2,test$responsive)
+```
+
+The model accuracy is `r (212+11)/255`.
+
+Find out which predictor variables are actually used in the random forest.
+
+```{r}
+# ?varUsed 
+# varUsed(model2)
+order2 <- sort(varUsed(model2), decreasing=TRUE, index.return=TRUE) # Return sorted frequency and indices
+# head(order2$ix)
+names(test[,head(order2$ix)]) # we can see which words are important!
+```
+
+
+## Comparison between CART and RF
+
+Run the models and calculate ...
+
+```{r, message=FALSE}
+library(ROCR)
+predictprob1 <- predict(model1,newdata=test,type="prob")
+predictprob2 <- predict(model2,newdata=test,type="prob")
+pred1 <- prediction(predictprob1[,2],test$responsive)
+pred2 <- prediction(predictprob2[,2],test$responsive)
+# performance(pred1,measure="auc") 
+# performance(pred2,measure="auc") 
+```
+
+Graphical analysis:
+
+```{r}
+plot(performance(pred1,measure="tpr",x.measure="fpr"))
+plot(performance(pred2,measure="tpr",x.measure="fpr"))
+```
+
+For this specific dataset, it appears that Random Forests have a better performance than CARTs.
+
+
+## Naive Bayes Classifier
+
+The function `naiveBayes` (package `e1071`) computes the conditional a-posteriori probabilities of a categorical class variable given independent predictor variables using the Bayes rule.
+
+```{r, message=FALSE}
+if(!require(e1071)){
+  install.packages("e1071")
+  library(e1071)
+}
+model3 <- naiveBayes(as.factor(responsive)~.,data=train)
+# summary(model3)
+```
+
+Conditional probabilities:
+
+```{r}
+model3$apriori
+```
+
+Conditional probabilities for each predictor. For each predictor, we get target class, mean and standard deviation. Let's look, for example, at the predictor `california` or `market`.
+
+```{r}
+model3$tables$california
+model3$tables$market
+```
+
+Prediction:
+
+```{r}
+predict3 <- predict(model3,newdata=test,type="class")
+table(predict3,test$responsive)
+```
+
+The model accuracy is `r (197+19)/255`, roughly comparable to CARTs.
+
+
+
+

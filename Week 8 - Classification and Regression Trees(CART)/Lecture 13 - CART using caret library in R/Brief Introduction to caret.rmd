@@ -1,0 +1,188 @@
+---
+title: "Brief Introduction to caret"
+author: "Stefano Galelli"
+date: "02/01/2020"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+First, we prepare the working environment.
+```{r}
+rm(list=ls()) # Clear the environment
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Week 8 - Classification and Regression Trees(CART)/Lecture 13 - CART using caret library in R")  # Setup the working directory
+```
+
+
+# Installing ```caret```
+
+We install it using the following command (which also accounts for dependencies):
+
+```{r, message=FALSE}
+#install.packages("caret", dependencies = c("Depends", "Suggests"))
+library(caret)
+```
+
+# Data Preparation
+
+## The US Supreme Court dataset
+
+Recall that our goal is to predict justice justice Stevens' decision using six predictors. The output that takes a value of 1 if Stevens' decision reverses the lower court decision and 0 if the judge affirms the lower court decision.
+
+```{r, message=FALSE}
+# Load data
+supreme <- read.csv("supreme(7).csv") # We have 623 observations and 20 variables
+# str(supreme)      # Internal structure of the dataframe 
+# head(supreme)    # First part of the dataframe
+
+# Prepare the output variable (justice Stevens' decision)
+stevens <- subset(supreme[,c("docket","term","stevdir","petit","respon","circuit","unconst","lctdir","issue","result")],supreme$stevdir!=9)
+stevens$rev <- as.integer((stevens$lctdir=="conser" & stevens$stevdir==0) | (stevens$lctdir=="liberal" & stevens$stevdir==1))
+```
+
+## Splitting the dataset
+
+To split the data into two groups (for training and testing), we use the function `createDataPartition`
+
+```{r}
+# set seed for random sampling
+set.seed(123)      
+inTrain <- createDataPartition(
+  y = stevens$rev, # output variable
+  p = 0.70, # percentage of data in the training set
+  list = FALSE # whether to return the results of the random sampling
+)
+# str(inTrain)
+```
+
+The output is a set of integers for the rows of ```rev``` that belong to the training set, so we just need to use the indices when creating the train and test sets.
+
+```{r}
+train <- stevens[inTrain, ];  # training dataset
+test  <- stevens[-inTrain, ]; # testing dataset
+```
+
+
+# Training a model
+
+## Basics
+
+To build a model, we use the ```train``` function, which is the core of the ```caret``` package. Here, we will use it with a very simple syntax (much more can be found at <https://topepo.github.io/caret/model-training-and-tuning.html>).
+
+```{r}
+FitCART <- train(
+  as.factor(rev)~petit+respon+circuit+lctdir+issue+unconst,
+  data = train,
+  method = "rpart"
+)
+```
+
+The variable ```FitCART``` contains all information about the CART we trained. Here, we look at the model performance. Note that across each data set, the performance of held-out samples is calculated and the mean and standard deviation is summarized for each combination. The combination with the optimal resampling statistic is chosen as the final model and the entire training set is used to fit a final model.
+
+```{r}
+FitCART$results
+```
+
+## Changing the sampling method
+
+A great feature of ```caret``` is the flexibility on how the held-out samples are used. To modify the sampling method, we use the function ```trainControl```. In the following example, we set a 5-fold cross-validation and use it when testing the CART:
+
+```{r}
+train_control <- trainControl(method="cv", number=10)
+FitCART <- train(
+  as.factor(rev)~petit+respon+circuit+lctdir+issue+unconst,
+  data = train,
+  method = "rpart",
+  trControl = train_control
+)
+```
+
+Because we used a different method for testing, the model performance is slightly different
+
+```{r}
+FitCART$results
+```
+
+## Exploring the role of the tuning parameter(s)
+
+With the option ```tuneLength```, we can play with the number of levels for each tuning parameter. Note that in the case of CART, we can work only with the parameter ```CP```.
+
+```{r}
+train_control <- trainControl(method="cv", number=10)
+FitCART <- train(
+  as.factor(rev)~petit+respon+circuit+lctdir+issue+unconst,
+  data = train,
+  method = "rpart",
+  tuneLength = 10,
+  trControl = train_control
+)
+```
+
+In the table below we can see the performance (on a 10-fold cross-validation) for 10 different values of ```CP```.
+
+```{r}
+FitCART$results
+```
+
+## Making predictions on the test dataset
+
+To make predictions on the testing dataset, we use the function ```predict.train```
+
+```{r}
+predictCART <- predict(FitCART, newdata = test)
+```
+
+The function ```confusionMatrix``` will provide us many statistics we need
+
+```{r}
+confusionMatrix(data = predictCART, as.factor(test$rev))
+```
+
+
+# Training and testing a different model
+
+To fit an another model to the data, ```train``` can be invoked with minimal changes. Here, we train a Logistic regression model using the same sampling method applied to the CART. (The model has no tuning parameter.)
+
+```{r, message=FALSE}
+FitLR <- train(
+  as.factor(rev)~petit+respon+circuit+lctdir+issue+unconst,
+  data = train,
+  method = "glm",
+  trControl = train_control
+)
+```
+
+Model performance
+
+```{r}
+FitLR$results
+```
+
+Model performance on the test dataset
+
+```{r}
+predictLR <- predict(FitLR, newdata = test)
+confusionMatrix(data = predictLR, as.factor(test$rev))
+```
+
+
+# Comparing models
+
+How do these models compare in terms of their resampling results? The ```resamples``` function can be used to collect, summarize and contrast the resampling results. Since the random number seeds were initialized to the same value prior to calling ```train```, the same folds were used for each model. To assemble them:
+
+```{r}
+resamps <- resamples(list(CART = FitCART, LR = FitLR))
+summary(resamps)
+```
+
+We can also grphically compare the models
+
+```{r}
+xyplot(resamps)
+```
+
+

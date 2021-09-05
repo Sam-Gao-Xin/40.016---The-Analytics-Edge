@@ -1,0 +1,122 @@
+---
+title: "Fake news detection (with Random Forests)"
+author: "Stefano Galelli"
+date: "Term 6, 2020"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+First, we prepare the working environment.
+
+```{r}
+rm(list=ls()) # Clear the environment
+setwd("/Users/james/OneDrive - Singapore University of Technology and Design/SUTD/Year 3/Term 6/40.016 - The Analytics Edge/Week 9/Lecture 15 - Ethics in Data Analytics")  # Setup the working directory
+```
+
+# Data Preparation
+
+For this simple exercise, we use existing datasets retrieved from the "Fake-News-Detection" GitHub [repository](https://github.com/chauhan-nitin/Fake-News-Detection). Here, the modelling problem is to build a classifier that detects whether a political statement from US 2016 elections is fake news (1) or not (0).
+
+The training and testing data are ready, so we don't need to split them, as we normally do.
+
+```{r, message=FALSE}
+train <- read.csv("binary_training.csv", header=T)
+test  <- read.csv("binary_testing.csv", header=T)
+```
+
+
+# Binary classification problem
+
+## Training and Testing
+
+Let's begin with the default parameterization and see what happens.
+
+```{r}
+library(randomForest)
+set.seed(123)
+forest <- randomForest(as.factor(Label)~.,data=train)
+forest
+```
+
+We can see that the OOB error rate is about 40%, meaning that the model accuracy is roughly 60%. Let's move to the test dataset.
+
+```{r}
+predictforest <- predict(forest,newdata=test,type="class")
+table(test$Label,predictforest)
+```
+
+The model accuracy is ````r sum(diag(table(test$Label,predictforest)))/sum(table(test$Label,predictforest))````.
+
+## Variable importance
+
+The term `democrat` appears to be very important.
+
+```{r}
+importance(forest) # tabulated results
+varImpPlot(forest) # plot
+```
+
+## Tuning the hyperparameters
+
+Now, we repeat the experiment, but changing both `mtry` and `ntree` at the same time. Note this experiment will take some time (at least 10 minutes).
+
+```{r}
+# Values of ntree to be tested
+B <- c(10,50,100,250,500)
+# Values of mtry to be tested
+m <- seq(1,20,by=1)
+# Initialize a matrix for the OOB value
+OOB_matrix <- matrix(0,nrow=length(B),ncol=length(m))
+# For loop
+for (i in 1:length(B)){
+  for (j in 1:length(m)){
+    # train a forest with B[i] trees
+    forest_temp <- randomForest(as.factor(Label)~.,data=train,ntree=B[i],mtry=m[j])
+    # model performance
+    OOB_matrix[i,j] <- forest_temp$err.rate[B[i],1]
+    # remove the temporary variable
+    rm(forest_temp)
+    }
+}
+# You may want to save the results
+write.csv(OOB_matrix,'OOB_matrix.csv')
+```
+
+The plot below shows that the best performance is attained with `mtry` equal to about 5 and at least 250 trees (`ntree`).
+
+```{r, message=FALSE}
+# OOB_matrix <- read.csv("OOB_matrix.csv")
+# OOB_matrix <- OOB_matrix[,2:21]
+# OOB_matrix <- as.matrix(OOB_matrix)
+library(reshape2)
+rownames(OOB_matrix) <- B
+colnames(OOB_matrix) <- m
+longData <- melt(OOB_matrix)
+# plot
+library(ggplot2)
+ggplot(longData, aes(x = Var1, y = Var2)) + 
+  geom_raster(aes(fill=value)) + 
+  scale_fill_gradient(low="grey90", high="red") +
+  labs(x="Number of Trees", y="Number of predictors")
+```
+
+Finally, let's train and test the model with the best OOB performance.
+
+```{r}
+best_forest <- randomForest(as.factor(Label)~.,data=train,mtry=5,ntree=500)
+best_forest
+predict_bestforest <- predict(best_forest,newdata=test,type="class")
+table(test$Label,predict_bestforest)
+```
+
+The accuracy is ```r sum(diag(table(test$Label,predict_bestforest)))/sum(table(test$Label,predict_bestforest))```.
+
+
+
+
+

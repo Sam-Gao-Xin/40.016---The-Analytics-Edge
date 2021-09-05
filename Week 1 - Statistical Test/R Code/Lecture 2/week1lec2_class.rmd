@@ -1,0 +1,155 @@
+---
+title: 'Basic R Notebook: Lecture 2'
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document: default
+---
+
+
+R stores objects in a variety of classes - numeric, integer, character, logical, list, matrix, dataframe and has logical overriding operations when you convert from one class to another.
+```{r}
+z <- 0.9
+z
+class(z)
+
+z1 <- c("a", "b")
+z1
+class(z1)
+```
+
+
+Factors: 
+```{r}
+ct <- c("jap", "kor", "sin", "kor", "jap", "sin","sin")
+class(ct)
+
+fct <- factor(ct)
+fct
+
+levels(fct)
+summary(fct)
+table(fct)
+```
+
+The function tapply:
+```{r}
+?tapply
+income <- c(500, 1000, 4000, 1244, 3400, 2000, 5000)
+mean(income)
+
+tapply(income, fct, mean)
+
+med <- data.frame(patient=1:100, age=rnorm(100, mean=60, sd=12), treatment=gl(2, 50, labels = c("treatment", "control")))
+head(med)
+
+tapply(med$age, med$treatment, mean)
+```
+
+
+Matrix and arrays
+```{r}
+?matrix
+r <- matrix(c(3,4,5,6,7,8), nrow =3, ncol=2,byrow=T)
+r
+
+  r[2,2]
+r[5]
+
+r[1,]
+r[,2]
+class(r)
+rownames(r) <- c("A","B","C")
+colnames(r) <- c("o","a")
+```
+
+
+Matrix operations:
+
+Array operations:
+```{r}
+a <- array(3:8, c(3,2))
+a
+class(a)
+z <- 1:50
+z
+dim(z) <- c(5, 2, 5)
+z[5, 2, 3]
+
+class(z)
+```
+
+Other operations with matrices:
+```{r}
+diag(10)
+diag(c(5,3,2))
+
+rbind(c(1,2,3), c(4,5,6))
+```
+
+Matrix multiplication:
+```{r}
+x <- matrix(5:10, nrow=3, ncol=2)
+y <- matrix(1:6, nrow=3, ncol=2)
+x
+y
+
+#The t function is a transpose to ensure that the matrix is in the right dimension.
+x%*%t(y)
+```
+
+
+
+Solutions of linear equations:
+```{r}
+a <- array(c(2,1,-1,2), c(2,2))
+b <- c(4,4)
+
+a
+b
+?solve
+solve(a,b)
+solve(a)
+```
+
+Eigen decomposition of a matrix:
+```{r}
+eigen(a)
+E <- eigen(a)
+E$values
+E$vectors
+```
+
+
+List consists of an ordered collection of objects that can be of different or the same type.
+```{r}
+c(1,2,"a")
+barack <- list(age, 59, sex="M", child.ages=c(22,19))
+barack
+class(barack)
+
+serena <- list(age=39, sex="F", child.ages=3)
+serena
+
+barack$age
+barack[1]
+
+class(barack[1])
+class(barack[[1]])
+```
+
+Dataframes are a tightly coupled collection of variables that share many of the properties of matrices and lists and is the fundamental data structure that will be used in most of this course.
+```{r}
+A <- data.frame(names=c("barack", "serena"), age=c(58, 39), children=c(2,1))
+A
+
+A$names
+
+class(A)
+
+class(A$ages)
+
+A$spouse <- c("michel","alexis")
+A
+```
+
